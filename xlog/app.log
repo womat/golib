@@ -1,0 +1,6 @@
+time=2026-02-25T19:39:40.248+01:00 level=WARN msg="This warning WILL appear in file"
+time=2026-02-25T19:39:40.248+01:00 level=ERROR msg="This error WILL appear in file"
+time=2026-02-25T19:41:43.285+01:00 level=WARN msg="This warning WILL appear in file"
+time=2026-02-25T19:41:43.285+01:00 level=ERROR msg="This error WILL appear in file"
+time=2026-02-25T19:42:35.322+01:00 level=WARN msg="This warning WILL appear in file"
+time=2026-02-25T19:42:35.322+01:00 level=ERROR msg="This error WILL appear in file"
