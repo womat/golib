@@ -6,11 +6,8 @@ import (
 	"net/http"
 )
 
-// Encode writes the response as JSON.
-//   - w is the response writer.
-//   - status is the HTTP status code.
-//   - v is the value to Encode as JSON.
-//   - If encoding fails, it writes an ApiError with http status InternalServerError.
+// Encode writes v as JSON with the given HTTP status code.
+// On marshal failure, responds with 500 InternalServerError.
 func Encode[T any](w http.ResponseWriter, status int, v T) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -26,14 +23,11 @@ func Encode[T any](w http.ResponseWriter, status int, v T) {
 	_, _ = w.Write(resp)
 }
 
-// Decode reads the request Body as JSON.
-//   - r is the request.
-//   - T is the type to Decode the JSON into.
-//   - If decoding fails, it returns an error.
+// Decode reads the request body as JSON into T.
 func Decode[T any](r *http.Request) (T, error) {
 	var v T
 	if err := json.NewDecoder(r.Body).Decode(&v); err != nil {
-		return v, fmt.Errorf("decode json failed: %w", err)
+		return v, fmt.Errorf("decode json: %w", err)
 	}
 	return v, nil
 }

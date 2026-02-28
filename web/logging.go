@@ -2,32 +2,34 @@ package web
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 )
 
-// logResponse is a wrapper around http.ResponseWriter that logs the response status and body.
+// logResponse wraps http.ResponseWriter to capture status code and response body for logging.
 //   - Status is the HTTP status code.
 //   - Body is the response body.
 //   - ResponseWriter is the original http.ResponseWriter.
 type logResponse struct {
-	Status int
-	Body   []byte
 	http.ResponseWriter
+	status int
+	body   bytes.Buffer
 }
 
-// newLogResponse creates a new logResponse.
-//   - w is the original http.ResponseWriter.
-//   - Returns a new logResponse.
-func newLogResponse(w http.ResponseWriter) *logResponse {
-	return &logResponse{ResponseWriter: w}
+// WriteHeader captures the status code.
+func (lr *logResponse) WriteHeader(status int) {
+	lr.status = status
+	lr.ResponseWriter.WriteHeader(status)
+}
+
+// Write captures the response body.
+func (lr *logResponse) Write(b []byte) (int, error) {
+	lr.body.Write(b)
+	return lr.ResponseWriter.Write(b)
 }
 
 // WithLogging is a middleware that logs the request and response.
-//   - h is the next handler.
-//   - Returns a new handler that logs the request and response.
 //   - It logs the request method, URL, and body.
 //   - It logs the response status and body.
 func WithLogging(h http.Handler, logger *slog.Logger) http.Handler {
@@ -35,20 +37,28 @@ func WithLogging(h http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
-			// Wrap the response writer.
-			lr := newLogResponse(w)
+			// Read and restore request body before handler consumes it
+			var reqBody bytes.Buffer
+			if r.Body != nil {
+				_, _ = io.Copy(&reqBody, r.Body)
+				r.Body = io.NopCloser(bytes.NewBuffer(reqBody.Bytes()))
+			}
+
+			lr := &logResponse{ResponseWriter: w, status: http.StatusOK}
 			h.ServeHTTP(lr, r)
 
-			// Copy request body to buffer
-			var reqBody bytes.Buffer
-			_, _ = io.Copy(&reqBody, r.Body)
-
 			// Log the request and response.
-			logger.Debug(fmt.Sprintf("%s %s -> %d", r.Method, r.URL.String(), lr.Status),
-				slog.Group("request", slog.String("method", r.Method), slog.String("url", r.URL.String()), slog.String("body", reqBody.String())),
-				slog.Group("response", slog.Int("status", lr.Status), slog.String("body", string(lr.Body))),
+			logger.Debug("request",
+				slog.Group("request",
+					slog.String("method", r.Method),
+					slog.String("url", r.URL.String()),
+					slog.String("body", reqBody.String()),
+				),
+				slog.Group("response",
+					slog.Int("status", lr.status),
+					slog.String("body", lr.body.String()),
+				),
 			)
-
 		},
 	)
 }

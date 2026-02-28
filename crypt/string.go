@@ -1,67 +1,57 @@
 package crypt
 
-// EncryptedString is a sym crypt string.
-// It automatically gets encrypted when created.
-// It also implements the Marshall/Unmarshall Text/Binary go interfaces for easier usage.
+// EncryptedString stores a symmetrically encrypted string value.
+// It implements the MarshalText/UnmarshalText and MarshalBinary/UnmarshalBinary interfaces
+// for transparent serialization/deserialization (e.g. YAML, JSON, TOML).
 type EncryptedString struct {
 	value string
 }
 
-// NewEncryptedString creates a new EncryptedString by encrypting the supplied plainTextValue.
+// NewEncryptedString creates a new EncryptedString by encrypting the given plain text.
 func NewEncryptedString(plainTextValue string) EncryptedString {
-	s := EncryptedString{
-		value: plainTextValue,
-	}
-	s.encrypt()
-	return s
+	c := NewSymmetricEncryption()
+	c.SetPlainText(plainTextValue)
+	return EncryptedString{value: c.GetCypherBase64()}
 }
 
-// NewDecryptedString decrypts an encrypted string
+// NewDecryptedString decrypts an encrypted string and returns the plain text.
 func NewDecryptedString(encryptedValue string) string {
-	s := EncryptedString{
-		value: encryptedValue,
-	}
+	s := &EncryptedString{value: encryptedValue}
 	return s.Value()
 }
 
-func (v *EncryptedString) encrypt() {
-	c := NewSymmetricEncryption()
-	c.SetPlainText(v.value)
-	v.value = c.GetCypherBase64()
-}
-
-func (v EncryptedString) decrypt() string {
+// Value returns the decrypted plain text value.
+func (v *EncryptedString) Value() string {
 	c := NewSymmetricEncryption()
 	c.SetCypherBase64(v.value)
-	// ignore errors
 	pt, _ := c.GetPlainText()
 	return pt
 }
 
-// Value returns the decrypted plainTextValue.
-func (v EncryptedString) Value() string {
-	return v.decrypt()
+// String implements fmt.Stringer and returns the encrypted value.
+// Note: returns encrypted value to prevent accidental plaintext logging.
+func (v *EncryptedString) String() string {
+	return v.value
 }
 
-// Value returns the decrypted plainTextValue.
-func (v EncryptedString) String() string {
-	return v.decrypt()
-}
-
-func (v EncryptedString) MarshalText() ([]byte, error) {
+// MarshalText implements encoding.TextMarshaler.
+func (v *EncryptedString) MarshalText() ([]byte, error) {
 	return []byte(v.value), nil
 }
 
+// UnmarshalText implements encoding.TextUnmarshaler.
 func (v *EncryptedString) UnmarshalText(text []byte) error {
 	v.value = string(text)
 	return nil
 }
 
-func (v EncryptedString) MarshalBinary() ([]byte, error) {
+// MarshalBinary implements encoding.BinaryMarshaler.
+func (v *EncryptedString) MarshalBinary() ([]byte, error) {
 	return []byte(v.value), nil
 }
 
-func (v *EncryptedString) UnmarshalBinary(text []byte) error {
-	v.value = string(text)
+// UnmarshalBinary implements encoding.BinaryUnmarshaler.
+func (v *EncryptedString) UnmarshalBinary(data []byte) error {
+	v.value = string(data)
 	return nil
 }
