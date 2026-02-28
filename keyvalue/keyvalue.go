@@ -1,3 +1,6 @@
+// Package keyvalue provides a generic key-value record type with type-safe accessors.
+// Values can be retrieved as bool, int, int64, float64, or string with automatic type conversion.
+// For raw access without conversion, use the Value method.
 package keyvalue
 
 import (
@@ -7,68 +10,63 @@ import (
 	"strings"
 )
 
-// Record defines the generic map[string]interface{}
-type Record map[string]interface{}
+// Record is a generic key-value map.
+type Record map[string]any
 
+// NewRecord creates a new empty Record.
 func NewRecord() Record {
 	return make(Record)
 }
 
-// Exists checks the existence of the key
+// Exists reports whether key exists in the record.
 func (r Record) Exists(key string) bool {
 	_, ok := r[key]
 	return ok
 }
 
-// Value returns the value for a specific key
-// or nil if it does not exist in the keyvalue record
-func (r Record) Value(key string) interface{} {
-	val, ok := r[key]
-	if ok {
-		return val
-	}
-	return nil
+// Value returns the raw value for key, or nil if not found.
+// Use this for special cases where type conversion is not desired.
+func (r Record) Value(key string) (any, bool) {
+	v, ok := r[key]
+	return v, ok
 }
 
-// Bool returns a boolean value for a specific key
-// or false when not found or not convertable
-func (r Record) Bool(key string, convert ...bool) bool {
-	if len(convert) == 0 || !convert[0] {
-		if val, ok := r[key].(bool); ok {
-			return val
-		}
-		return false
-	}
+// Set sets the value for key.
+func (r Record) Set(key string, value any) {
+	r[key] = value
+}
+
+// Bool returns the bool value for key.
+// Converts from string, int, int64, and float64 if necessary.
+// Returns false if not found or not convertible.
+func (r Record) Bool(key string) bool {
 	switch i := r[key].(type) {
-	case int64, int:
+	case bool:
+		return i
+	case int:
+		return i == 1
+	case int64:
 		return i == 1
 	case float64:
 		return i == 1.0
 	case string:
-		switch i {
-		case "true":
+		switch strings.ToLower(i) {
+		case "true", "yes", "1", "on":
 			return true
-		case "false":
+		case "false", "no", "0", "off":
 			return false
 		}
 		v, err := strconv.ParseFloat(i, 64)
 		return err == nil && v == 1
-	case bool:
-		return i
 	}
 
 	return false
 }
 
-// Float64 returns a float64 value for a specific key
-// or 0.0 when not found or not convertable
-func (r Record) Float64(key string, convert ...bool) float64 {
-	if len(convert) == 0 || !convert[0] {
-		if value, ok := r[key].(float64); ok {
-			return value
-		}
-		return 0.0
-	}
+// Float64 returns the float64 value for key.
+// Converts from string, int, int64, and bool if necessary.
+// Returns 0.0 if not found or not convertible.
+func (r Record) Float64(key string) float64 {
 	switch i := r[key].(type) {
 	case float64:
 		return i
@@ -88,15 +86,10 @@ func (r Record) Float64(key string, convert ...bool) float64 {
 	return 0.0
 }
 
-// Int returns an int value for a specific key
-// or 0 when not found or not convertable
-func (r Record) Int(key string, convert ...bool) int {
-	if len(convert) == 0 || !convert[0] {
-		if val, ok := r[key].(int); ok {
-			return val
-		}
-		return 0
-	}
+// Int returns the int value for key.
+// Converts from string, int64, float64, and bool if necessary.
+// Returns 0 if not found or not convertible.
+func (r Record) Int(key string) int {
 	switch i := r[key].(type) {
 	case float64:
 		return int(i)
@@ -116,18 +109,10 @@ func (r Record) Int(key string, convert ...bool) int {
 	return 0
 }
 
-// Int64 returns an int64 value for a specific key
-// or 0 when not found or not convertable
-func (r Record) Int64(key string, convert ...bool) int64 {
-	if len(convert) == 0 || !convert[0] {
-		if val, ok := r[key].(int64); ok {
-			return val
-		}
-		if val, ok := r[key].(int); ok {
-			return int64(val)
-		}
-		return 0
-	}
+// Int64 returns the int64 value for key.
+// Converts from string, int, float64, and bool if necessary.
+// Returns 0 if not found or not convertible.
+func (r Record) Int64(key string) int64 {
 	switch i := r[key].(type) {
 	case float64:
 		return int64(i)
@@ -147,16 +132,10 @@ func (r Record) Int64(key string, convert ...bool) int64 {
 	return 0
 }
 
-// String returns a string value for a specific key
-// or "" when not found
-func (r Record) String(key string, convert ...bool) string {
-	if len(convert) == 0 || !convert[0] {
-		if str, ok := r[key].(string); ok {
-			return str
-		}
-		return ""
-	}
-
+// String returns the string value for key.
+// Converts from bool, int, int64, and float64 if necessary.
+// Returns "" if not found or not convertible.
+func (r Record) String(key string) string {
 	switch v := r[key].(type) {
 	case string:
 		return v
@@ -166,40 +145,31 @@ func (r Record) String(key string, convert ...bool) string {
 		}
 		return "false"
 	case int:
-		return fmt.Sprintf("%v", v)
+		return fmt.Sprintf("%d", v)
 	case int64:
-		return fmt.Sprintf("%v", v)
+		return fmt.Sprintf("%d", v)
 	case float64:
-		s := strconv.FormatFloat(v, 'f', 15, 64)
-		s = strings.TrimRight(s, "0")
-		s = strings.TrimRight(s, ".")
-		return s
+		return strconv.FormatFloat(v, 'f', -1, 64)
 	}
 	return ""
 }
 
-// Copy makes a copy of the record
-// RESTRICTIONS: if the value is a pointer (maps or structs) only the reference is copied, not the content!
+// Copy returns a shallow copy of the record.
+// Note: pointer values (maps, slices, structs) are not deep copied.
 func (r Record) Copy() Record {
-	// a map is a pointer  so maps must be copied
-
-	record := make(Record)
+	record := make(Record, len(r))
 	for k, v := range r {
 		record[k] = v
 	}
-
 	return record
 }
 
 // GetSortedKeys returns the sorted keys as a slice
 func (r Record) GetSortedKeys() []string {
-	keys := make([]string, len(r))
-	var n int
+	keys := make([]string, 0, len(r))
 	for k := range r {
-		keys[n] = k
-		n++
+		keys = append(keys, k)
 	}
-
 	sort.Strings(keys)
 	return keys
 }
