@@ -1,0 +1,46 @@
+# =============================================================================
+# app configuration
+# =============================================================================
+
+# logLevel defines the minimum log level.
+# Messages with at least this level are logged.
+# Allowed values: debug | info | warn | error
+logLevel: info
+
+# logDestination defines where logs are written to.
+# Supported values: stdout | stderr | /path/to/logfile
+logDestination: stdout
+
+# =============================================================================
+# Webserver configuration (HTTPS)
+# =============================================================================
+webserver:
+  # Host address the HTTPS server listens on (0.0.0.0 = all interfaces)
+  listenHost: 0.0.0.0
+
+  # Port the HTTPS server listens on
+  listenPort: 443
+
+  # Global API key for protected endpoints
+  apiKey: changeme!
+
+  # TLS private key file
+  keyFile: /opt/demo_app/etc/key.pem
+
+  # TLS certificate file
+  certFile: /opt/demo_app/etc/cert.pem
+
+  # Blocked IP addresses or networks (empty = none blocked)
+  # Examples: 192.168.0.1, 192.168.0.0/16, 10.0.0.0/8
+  blockedIPs: []
+  #  - 192.168.0.1
+  #  - 192.168.0.0/16
+
+  # Allowed IP addresses or networks (empty = all allowed)
+  # Note: ::1 is the IPv6 loopback address
+  # Examples: 127.0.0.1, ::1, 192.168.0.0/16
+  allowedIPs: []
+  #  - 127.0.0.1
+  #  - ::1
+  #  - 192.168.0.0/16
+
