@@ -77,7 +77,7 @@ func Init(dest string, logLevel string) (*LoggerWrapper, error) {
 		level = slog.LevelDebug
 	case "error":
 		level = slog.LevelError
-	case "warning":
+	case "warning", "warn":
 		level = slog.LevelWarn
 	default:
 		level = slog.LevelInfo

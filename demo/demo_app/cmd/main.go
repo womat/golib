@@ -1,4 +1,4 @@
-// Package main provides the entry point for the demp_app application.
+// Package main provides the entry point for the demo_app application.
 //
 // This program initializes logging, loads configuration, handles command-line flags,
 // and starts the main application loop. It supports hot reloads of the config

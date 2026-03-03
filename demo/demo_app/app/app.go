@@ -18,8 +18,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"sync"
 	"syscall"
-	"time"
 )
 
 // VERSION holds the version information with the following logic in mind
@@ -43,11 +44,12 @@ const (
 // App is the main application struct.
 // App is where the application is wired up.
 type App struct {
-	baseDir    string        // working directory
-	config     *Config       // app configuration
-	web        *http.Server  // HTTP server
-	restart    chan struct{} // signals application restart
-	shutdown   chan struct{} // signals application shutdown
+	wg         sync.WaitGroup // wait group to track running webserver
+	baseDir    string         // working directory
+	config     *Config        // app configuration
+	web        *http.Server   // HTTP server
+	restart    chan struct{}  // signals application restart
+	shutdown   chan struct{}  // signals application shutdown
 	ctx        context.Context
 	cancelFunc context.CancelFunc
 
@@ -62,7 +64,7 @@ func New(config *Config, baseDir string) *App {
 		baseDir: baseDir,
 		config:  config,
 		web: &http.Server{
-			Addr: net.JoinHostPort(config.Webserver.ListenHost, config.Webserver.ListenPort),
+			Addr: net.JoinHostPort(config.Webserver.ListenHost, strconv.Itoa(config.Webserver.ListenPort)),
 		},
 
 		restart:    make(chan struct{}),
@@ -131,23 +133,31 @@ func (app *App) HandleOSSignals() {
 	go func() {
 		sig := make(chan os.Signal, 1)
 		signal.Notify(sig, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
+		defer signal.Stop(sig) // Cleanup: rollback signal.Notify
 
 		slog.Info("Starting signal handler")
 
-		receivedSignal := <-sig
-		slog.Info("Received OS signal", "signal", receivedSignal)
-
-		switch receivedSignal {
-		case syscall.SIGHUP:
-			slog.Info("SIGHUP received, initiating restart")
-			app.shutdownProcedure(ModeRestart)
-			// reset the signal registration before the program restarts.
-			// with program restarts, the HandleOSSignals function is called again and re-registers the signals.
-			signal.Reset()
-
-		case syscall.SIGTERM, syscall.SIGINT:
-			slog.Info("SIGTERM/SIGINT received, stopping")
-			app.shutdownProcedure(ModeStop)
+		// Use select instead of a plain channel receive so the goroutine has
+		// two exit paths and always terminates cleanly:
+		//   - a signal is received and handled, or
+		//   - the context is cancelled externally (e.g. from a concurrent shutdown).
+		// Without this, the goroutine would block forever after signal.Reset()
+		// on a SIGHUP restart, leaking one goroutine per reload cycle.
+		select {
+		case receivedSignal := <-sig:
+			slog.Info("Received OS signal", "signal", receivedSignal)
+			switch receivedSignal {
+			case syscall.SIGHUP:
+				slog.Info("SIGHUP received, initiating restart")
+				app.shutdownProcedure(ModeRestart)
+			case syscall.SIGTERM, syscall.SIGINT:
+				slog.Info("SIGTERM/SIGINT received, stopping")
+				app.shutdownProcedure(ModeStop)
+			}
+		case <-app.ctx.Done():
+			// Context was cancelled externally – exit without triggering
+			// a second shutdown procedure.
+			slog.Debug("Signal handler: context cancelled, exiting goroutine")
 		}
 	}()
 }
@@ -160,15 +170,7 @@ func (app *App) shutdownProcedure(mode int) {
 
 	// cancel the application context to stop all running goroutines
 	app.cancelFunc()
-
-	if mode == ModeStop {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		if err := app.web.Shutdown(ctx); err != nil {
-			slog.Error("Web server shutdown failed", "error", err)
-		}
-	}
+	app.wg.Wait() //wait for the web server to shutdown before cleaning up resources
 
 	if err := app.Cleanup(); err != nil {
 		slog.Error("Cleanup failed", "error", err)
@@ -178,11 +180,12 @@ func (app *App) shutdownProcedure(mode int) {
 	case ModeRestart:
 		slog.Info("Shutdown complete, restarting")
 		app.restart <- struct{}{}
+		// Channels are intentionally left open: cmd/main.go receives the restart
+		// signal and calls New(), which creates fresh channels for the next lifecycle.
 	case ModeStop:
 		slog.Info("Module stopped", "module", MODULE, "version", VERSION, "pid", os.Getpid())
 		app.shutdown <- struct{}{}
 		close(app.shutdown)
-		close(app.restart)
 	}
 
 }

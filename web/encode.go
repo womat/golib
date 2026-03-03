@@ -14,7 +14,11 @@ func Encode[T any](w http.ResponseWriter, status int, v T) {
 
 	resp, err := json.Marshal(v)
 	if err != nil {
-		resp, _ = json.Marshal(NewApiError(err))
+		if resp, err = json.Marshal(NewApiError(err)); err != nil {
+			// NewApiError itself failed to marshal – use a static fallback
+			// so the client always receives a valid JSON body.
+			resp = []byte(`{"error":"internal server error"}`)
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
 		w.WriteHeader(status)

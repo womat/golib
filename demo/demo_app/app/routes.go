@@ -24,8 +24,7 @@ import (
 const (
 	PathVersion = "/version"
 	PathHealth  = "/health"
-	PathLive    = "/alive"
-	PathReady   = "/ready"
+
 	PathSwagger = "/swagger/"
 )
 
@@ -48,11 +47,9 @@ func (app *App) SetupRoutes() {
 
 	// Public routes
 	mux.Handle("GET "+PathVersion, app.HandleVersion())
-	mux.Handle("GET "+PathHealth, app.HandleHealth())
 
 	// Protected routes
-	mux.Handle("GET "+PathLive, web.WithAuth(app.HandleLive(), webCfg))
-	mux.Handle("GET "+PathReady, web.WithAuth(app.HandleReady(), webCfg))
+	mux.Handle("GET "+PathHealth, web.WithAuth(app.HandleHealth(), webCfg))
 
 	// Apply global middleware: CORS + IP filter
 	handler := web.WithCORS(mux)
