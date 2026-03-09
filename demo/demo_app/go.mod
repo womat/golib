@@ -1,4 +1,4 @@
-module demo_app
+module github.com/womat/golib/demo/demo_app
 
 go 1.26
 
