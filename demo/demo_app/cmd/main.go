@@ -131,7 +131,7 @@ func About() string {
 		"Binary":   filepath.Join("/opt", app.MODULE, "bin", app.MODULE),
 		"Date":     buildDate,
 		"Commit":   buildCommit,
-		"Desc":     app.MODULE + " is demo app",
+		"Desc":     app.MODULE + " is a demo app",
 		"Help":     filepath.Join("/opt", app.MODULE, "bin", app.MODULE) + " --help",
 		"Main":     filepath.Join("/opt/src", app.MODULE, "cmd", app.MODULE, "main.go"),
 		"ProgLang": runtime.Version(),
