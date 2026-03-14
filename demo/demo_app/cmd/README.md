@@ -36,7 +36,4 @@ CONFIG_FILE=/etc/demo_app/config.yaml demo_app
 ## Configuration
 
 The configuration file is a YAML file. By default it is loaded from `/opt/demo_app/etc/config.yaml`.
-
-### Full Example
-
-```yaml
+Environment variables are expanded inside the file, e.g. `apiKey: ${TADL_API_KEY}`.
