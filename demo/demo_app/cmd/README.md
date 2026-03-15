@@ -2,11 +2,13 @@
 
 **demo_app**  is an ...
 
-## Features
+---
 
-- Persists counters to a YAML file for recovery after restart
-- Exposes an HTTPS API for live readings
-- Supports hot-reload of configuration
+## Usage
+
+```text
+demo_app [--config FILE] [--debug] [--version] [--about] [--help]
+```
 
 ---
 
@@ -36,4 +38,5 @@ CONFIG_FILE=/etc/demo_app/config.yaml demo_app
 ## Configuration
 
 The configuration file is a YAML file. By default it is loaded from `/opt/demo_app/etc/config.yaml`.
+
 Environment variables are expanded inside the file, e.g. `apiKey: ${TADL_API_KEY}`.

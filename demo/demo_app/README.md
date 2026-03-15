@@ -6,8 +6,19 @@ description
 
 ## Features
 
-- Exposes data via HTTPS REST API (with API key or JWT authentication)
-- IP allowlist / blocklist support
+- Exposes a secured **HTTPS REST API** (API key authentication)
+- **IP allowlist / blocklist** support
+- **Hot-reload** of configuration via `SIGHUP`
+- Embedded self-signed TLS certificate for development (no setup required)
+- Optional **Swagger UI** (build tag `swagger`, dev only)
+
+---
+
+## Where to start
+
+- Runtime, API, build, deploy, and Swagger usage: [`cmd/README.md`](cmd/README.md)
+- Example configuration: [`config/config.yaml`](config/config.yaml)
+- Swagger generation script: [`docs/generate.sh`](docs/generate.sh)
 
 ---
 
@@ -54,11 +65,11 @@ CONFIG_FILE=/etc/demo_app/config.yaml demo_app
 ```
 
 ---
+
 ## Configuration
 
 Default location: `/opt/demo_app/etc/config.yaml`
 Environment variables are expanded inside the file, e.g. `apiKey: ${TADL_API_KEY}`.
-
 
 ```yaml
 # =============================================================================
@@ -107,7 +118,6 @@ webserver:
 
 ---
 
-
 ## TLS Certificate
 
 Generate a self-signed certificate for development:
@@ -137,6 +147,7 @@ openssl req -x509 -nodes -newkey rsa:2048 \
 ---
 
 ## Installation
+
 ### 1. Create system user and directories
 
 ```sh
@@ -244,6 +255,7 @@ sudo tar xzf /tmp/demo_app-backup.tar.gz -C /
 sudo chown -R demo_app:demo_app /opt/demo_app
 sudo systemctl restart demo_app
 ```
+
 ---
 
 ## License
