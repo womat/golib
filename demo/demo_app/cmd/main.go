@@ -6,7 +6,6 @@
 package main
 
 import (
-	"demo_app/app"
 	_ "embed"
 	"flag"
 	"fmt"
@@ -16,6 +15,7 @@ import (
 	"runtime"
 	"time"
 
+	"github.com/womat/golib/demo/demo_app/app"
 	"github.com/womat/golib/xlog"
 	"gopkg.in/yaml.v3"
 )
