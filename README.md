@@ -67,11 +67,14 @@ The application provides the glue, which keeps the codec usable over any transpo
 Sending:
 
 ```go
-enc := encoder.New(50,
+enc, err := encoder.New(50,
     func(level encoder.Level) error { return pin.SetValue(gpio.Level(level)) },
     encoder.WithBitOrder(encoder.LSBFirst),
     encoder.WithSyncBytes(2),
 )
+if err != nil {
+    log.Fatal(err)
+}
 defer enc.Close()
 
 if _, err := enc.Send([]byte("Hello World")); err != nil {
