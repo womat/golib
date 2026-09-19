@@ -40,7 +40,13 @@ Version tagging is done on the whole library at once (`git tag -a vX.Y.Z -m "...
 events) and contains no hardware code. Two implementations satisfy it: `gpio/rpi` (Linux
 character device via go-gpiocdev) and `gpio/rpiemu` (in-memory emulator for tests and
 development on non-Pi machines). Code that consumes GPIO should depend on `gpio.Pin`, never
-on a backend, so the emulator can be substituted.
+on a backend, so the emulator can be substituted. Mode, pull resistor and debounce are
+fixed at construction through each backend's options — the interface has no setters.
+
+The emulator adds one method beyond the interface: `Drive(level)` simulates the outside
+world changing the line and works on input pins, which `SetValue` deliberately refuses.
+That is how receiving code (the Manchester decoder, for instance) is tested without
+hardware; `rpiemu.NewPin` returns `rpiemu.Pin`, which embeds `gpio.Pin`.
 
 **Manchester signal chain.** `manchester/encoder` and `manchester/decoder` are deliberately
 decoupled from `gpio`: the encoder takes a `SetValue func(Level) error` callback, and the
@@ -95,6 +101,9 @@ logs — note `crypt` ships a compiled-in default AES key, so production code mu
 
 ## Known state
 
-`gpio/gpio_test.go` and `gpio/rpiemu/gpio_test.go` are stale: they call
-`WatchCh(ctx, edges)` while the current `Pin` interface is `WatchCh(edges Edge)`. `go vet`
-and `go test` on `./gpio/...` fail for this reason. The other packages vet and test clean.
+`go vet ./...` and `go test ./...` are clean except for `gpio/rpi`, which cannot be built on
+macOS because `go-gpiocdev` is Linux-only — see the note under Commands. Everything else
+builds and tests on any platform.
+
+`demo/demo_app` does not compile: `app/api_health.go` imports `demo_app/app/service/health`
+instead of the module path `github.com/womat/golib/demo/demo_app/app/service/health`.

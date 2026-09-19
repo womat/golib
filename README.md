@@ -56,7 +56,17 @@ for evt := range events {
 ```
 
 `rpiemu.NewPin` accepts the same options, so tests can drive the exact same code path
-without a Pi. Note that `gpio/rpi` only builds on Linux.
+without a Pi. The emulator additionally offers `Drive`, which simulates the outside world
+changing the line and, unlike `SetValue`, works on input pins:
+
+```go
+pin, _ := rpiemu.NewPin(17, rpiemu.WithMode(gpio.Input))
+events, _ := pin.WatchCh(gpio.RisingEdge | gpio.FallingEdge)
+
+pin.Drive(gpio.High) // delivers a rising edge to the watcher
+```
+
+Note that `gpio/rpi` only builds on Linux.
 
 ## Manchester encoding
 
