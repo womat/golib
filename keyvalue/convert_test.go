@@ -199,39 +199,64 @@ func TestUnsupportedTypesYieldZero(t *testing.T) {
 	}
 }
 
-// TestBoolMeansExactlyOne pins down the rule that is easy to get wrong: Bool
-// asks whether the value equals one, not whether it is non-zero.
-func TestBoolMeansExactlyOne(t *testing.T) {
+// TestBoolIsNonZero pins down the rule for numbers: a value is true when it is
+// non-zero, following the usual convention. NaN is the one exception - "not a
+// number" is not a truth value - and number-like strings follow the same rule
+// as numbers, so that "2" and 2 cannot disagree.
+func TestBoolIsNonZero(t *testing.T) {
 	tests := []struct {
+		name  string
 		value any
 		want  bool
 	}{
-		{1, true},
-		{0, false},
-		{2, false},
-		{-1, false},
-		{int64(1), true},
-		{int64(2), false},
-		{1.0, true},
-		{2.0, false},
-		{"1", true},
-		{"2", false},
-		{"true", true},
-		{"yes", true},
-		{"on", true},
-		{"false", false},
-		{"no", false},
-		{"off", false},
-		{"", false},
-		{true, true},
-		{false, false},
+		{"bool true", true, true},
+		{"bool false", false, false},
+
+		{"one", 1, true},
+		{"zero", 0, false},
+		{"two", 2, true},
+		{"negative", -1, true},
+		{"large", 2134, true},
+
+		{"int64 one", int64(1), true},
+		{"int64 two", int64(2), true},
+		{"int64 zero", int64(0), false},
+
+		{"float one", 1.0, true},
+		{"float two", 2.0, true},
+		{"float fraction", 0.1, true},
+		{"float zero", 0.0, false},
+		{"negative zero", math.Copysign(0, -1), false},
+		{"infinity", math.Inf(1), true},
+		{"negative infinity", math.Inf(-1), true},
+		{"not a number", math.NaN(), false},
+
+		{"named true", "true", true},
+		{"named yes", "yes", true},
+		{"named on", "on", true},
+		{"named uppercase", "TRUE", true},
+		{"named false", "false", false},
+		{"named no", "no", false},
+		{"named off", "off", false},
+
+		{"string one", "1", true},
+		{"string zero", "0", false},
+		{"string two", "2", true},
+		{"string negative", "-1", true},
+		{"string fraction", "0.5", true},
+		{"string with sign", "+4306644447701", true},
+		{"string not a number", "NaN", false},
+		{"string non numeric", "a", false},
+		{"empty string", "", false},
 	}
 
 	for _, tt := range tests {
-		r := Record{"v": tt.value}
+		t.Run(tt.name, func(t *testing.T) {
+			r := Record{"v": tt.value}
 
-		if got := r.Bool("v"); got != tt.want {
-			t.Errorf("Bool() = %v for %#v, want %v", got, tt.value, tt.want)
-		}
+			if got := r.Bool("v"); got != tt.want {
+				t.Errorf("Bool() = %v for %#v, want %v", got, tt.value, tt.want)
+			}
+		})
 	}
 }

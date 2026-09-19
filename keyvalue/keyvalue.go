@@ -1,5 +1,7 @@
-// Package keyvalue provides a generic key-value record type with type-safe accessors.
-// Values can be retrieved as bool, int, int64, float64, or string with automatic type conversion.
+// Package keyvalue provides a generic key-value record type with converting accessors.
+// Values can be retrieved as bool, int, int64, float64, or string, and are converted
+// as needed. Nothing is checked at compile time: an accessor that cannot deliver what
+// was asked for returns the zero value rather than an error.
 // For raw access without conversion, use the Value method.
 //
 // # Conversion
@@ -12,8 +14,9 @@
 //
 // Two rules are easy to get wrong:
 //
-//   - Bool asks whether the value equals one, not whether it is non-zero.
-//     2, -1 and "2" are therefore false, while "true", "yes" and "on" are true.
+//   - Bool treats any non-zero number as true, NaN excepted. Strings that name
+//     a truth value ("true", "yes", "on" and their negatives) are recognised as
+//     such, anything else is read as a number and follows the same rule.
 //   - Int returns the platform's int. On a 32-bit platform, which includes the
 //     GOARCH=arm builds for the Raspberry Pi, a value that does not fit reads
 //     as 0 rather than as a truncated number. Use Int64 where the range
@@ -28,7 +31,6 @@
 package keyvalue
 
 import (
-	"fmt"
 	"math"
 	"sort"
 	"strconv"
@@ -39,6 +41,11 @@ import (
 type Record map[string]any
 
 // NewRecord creates a new empty Record.
+//
+// Use it, or a Record{} literal, before writing: the zero value of Record is a
+// nil map. Reading from one is harmless and yields zero values throughout, but
+// Set panics on it - the one place where this package does not simply hand
+// back a zero value.
 func NewRecord() Record {
 	return make(Record)
 }
@@ -58,6 +65,8 @@ func (r Record) Value(key string) (any, bool) {
 }
 
 // Set sets the value for key.
+//
+// It panics if the Record is the nil zero value; see NewRecord.
 func (r Record) Set(key string, value any) {
 	r[key] = value
 }
@@ -66,20 +75,22 @@ func (r Record) Set(key string, value any) {
 // Converts from string, int, int64, and float64 if necessary.
 // Returns false if not found or not convertible.
 //
-// A number is true when it equals one, not when it is non-zero: 2 and -1 are
-// false. For strings, "true", "yes", "on" and "1" are true, "false", "no",
-// "off" and "0" are false, and anything else is true only if it parses as the
-// number one.
+// A number is true when it is non-zero, so 2 and -1 are true and 0 is false.
+// NaN is the exception and reads as false: it is not a truth value.
+//
+// For strings, "true", "yes", "on" and "false", "no", "off" are recognised
+// regardless of case. Anything else is parsed as a number and follows the same
+// rule, so "2" is true and "0" is false.
 func (r Record) Bool(key string) bool {
 	switch i := r[key].(type) {
 	case bool:
 		return i
 	case int:
-		return i == 1
+		return i != 0
 	case int64:
-		return i == 1
+		return i != 0
 	case float64:
-		return i == 1.0
+		return isTrue(i)
 	case string:
 		switch strings.ToLower(i) {
 		case "true", "yes", "1", "on":
@@ -87,16 +98,28 @@ func (r Record) Bool(key string) bool {
 		case "false", "no", "0", "off":
 			return false
 		}
+
+		// ParseFloat accepts "NaN" and the infinities, so the result goes
+		// through the same check as a float value.
 		v, err := strconv.ParseFloat(i, 64)
-		return err == nil && v == 1
+		return err == nil && isTrue(v)
 	}
 
 	return false
 }
 
+// isTrue reports whether f counts as true: non-zero, but not NaN.
+func isTrue(f float64) bool {
+	return !math.IsNaN(f) && f != 0
+}
+
 // Float64 returns the float64 value for key.
 // Converts from string, int, int64, and bool if necessary.
 // Returns 0.0 if not found or not convertible.
+//
+// An integer beyond 2^53 cannot be represented exactly and is rounded, so
+// Float64 and Int64 of the same entry may disagree. Use Int64 where the exact
+// value matters.
 func (r Record) Float64(key string) float64 {
 	switch i := r[key].(type) {
 	case float64:
@@ -171,6 +194,11 @@ func (r Record) Int64(key string) int64 {
 // String returns the string value for key.
 // Converts from bool, int, int64, and float64 if necessary.
 // Returns "" if not found or not convertible.
+//
+// A float is formatted without an exponent, so a very large or very small
+// value becomes a long run of digits: 1e-30 reads as
+// "0.000000000000000000000000000001". The result parses back to the same
+// float, but it is not meant for display.
 func (r Record) String(key string) string {
 	switch v := r[key].(type) {
 	case string:
@@ -181,9 +209,9 @@ func (r Record) String(key string) string {
 		}
 		return "false"
 	case int:
-		return fmt.Sprintf("%d", v)
+		return strconv.Itoa(v)
 	case int64:
-		return fmt.Sprintf("%d", v)
+		return strconv.FormatInt(v, 10)
 	case float64:
 		return strconv.FormatFloat(v, 'f', -1, 64)
 	}

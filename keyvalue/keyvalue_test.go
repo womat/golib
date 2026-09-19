@@ -34,38 +34,44 @@ var myTestRecord = Record{
 }
 
 func Test_Bool(t *testing.T) {
-	expectedConverted := map[string]interface{}{
+	// Bool is true for any non-zero number, so every numeric entry other than
+	// the zeroes is true here. See TestBoolIsNonZero for the rule itself.
+	expectedConverted := map[string]bool{
 		"":            false,
 		"emptyString": false,
 		"stringa":     false,
 		"string1":     true,
 		"string0":     false,
-		"stringPhone": false,
-		"int2134":     false,
-		"float3.14":   false,
+		"stringPhone": true,
+		"int2134":     true,
+		"float3.14":   true,
 		"boolTrue":    true,
 		"boolFalse":   false,
 		"int1":        true,
-		"int-1":       false,
+		"int-1":       true,
 		"int0":        false,
 		"float0.0":    false,
 		"float1.0":    true,
-		"float-1.0":   false,
-		"float0.1":    false,
-		"floatPhone":  false,
+		"float-1.0":   true,
+		"float0.1":    true,
+		"floatPhone":  true,
+		"StringHuge":  true,
+		"StringSmall": true,
+		"floatHuge":   true,
+		"floatSmall":  true,
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.Bool(k)
 		if x != v {
-			t.Errorf("unexpected (converted) input = %v, output = %v", k, x)
+			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", k, x, v)
 		}
 	}
 
 }
 
 func Test_String(t *testing.T) {
-	expectedConverted := map[string]interface{}{
+	expectedConverted := map[string]string{
 		"":            "",
 		"emptyString": "",
 		"stringa":     "a",
@@ -86,12 +92,14 @@ func Test_String(t *testing.T) {
 		"floatPhone":  "4306644447701",
 		"floatHuge":   "1234567890123456",
 		"floatSmall":  "0.00000012345678",
+		"StringHuge":  "1234567890123456.0",
+		"StringSmall": "0.00000012345678",
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.String(k)
 		if x != v {
-			t.Errorf("unexpected (converted) input = %v, output = %q", k, x)
+			t.Errorf("unexpected (converted) input = %v, output = %q, want %q", k, x, v)
 		}
 	}
 
@@ -123,12 +131,15 @@ func Test_Int(t *testing.T) {
 		"float1.0":    1,
 		"float-1.0":   -1,
 		"float0.1":    0,
+		"StringHuge":  0, // Atoi rejects "1234567890123456.0"
+		"StringSmall": 0,
+		"floatSmall":  0,
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.Int(k)
 		if x != v {
-			t.Errorf("unexpected (converted) input = %v, output = %v", k, x)
+			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", k, x, v)
 		}
 	}
 
@@ -146,11 +157,22 @@ func Test_Int(t *testing.T) {
 			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", key, x, want)
 		}
 	}
+
+	// Same for floatHuge, which also exceeds a 32-bit int.
+	var huge int64 = 1234567890123456
+
+	want = 0
+	if strconv.IntSize == 64 {
+		want = int(huge)
+	}
+	if x := myTestRecord.Int("floatHuge"); x != want {
+		t.Errorf("unexpected (converted) input = floatHuge, output = %v, want %v", x, want)
+	}
 }
 
 func Test_Int64(t *testing.T) {
 
-	expectedConverted := map[string]interface{}{
+	expectedConverted := map[string]int64{
 		"":            int64Zero,
 		"emptyString": int64Zero,
 		"stringa":     int64Zero,
@@ -169,18 +191,22 @@ func Test_Int64(t *testing.T) {
 		"float-1.0":   int64(-1),
 		"float0.1":    int64Zero,
 		"floatPhone":  int64(4306644447701),
+		"StringHuge":  int64Zero, // ParseInt rejects "1234567890123456.0"
+		"StringSmall": int64Zero,
+		"floatHuge":   int64(1234567890123456),
+		"floatSmall":  int64Zero,
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.Int64(k)
 		if x != v {
-			t.Errorf("unexpected (converted) input = %v, output = %v", k, x)
+			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", k, x, v)
 		}
 	}
 }
 
 func Test_Float(t *testing.T) {
-	expectedConverted := map[string]interface{}{
+	expectedConverted := map[string]float64{
 		"":            float64Zero,
 		"emptyString": float64Zero,
 		"stringa":     float64Zero,
@@ -201,12 +227,14 @@ func Test_Float(t *testing.T) {
 		"float-1.0":   -1.0,
 		"float0.1":    0.1,
 		"floatPhone":  4306644447701.0,
+		"floatHuge":   1234567890123456.0,
+		"floatSmall":  0.00000012345678,
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.Float64(k)
 		if x != v {
-			t.Errorf("unexpected (converted) input = %v, output = %v", k, x)
+			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", k, x, v)
 		}
 	}
 }
@@ -223,13 +251,24 @@ func Test_Value(t *testing.T) {
 		}
 	}
 
-	for _, key := range []string{"boolTrue", "boolTrue"} {
+	for _, key := range []string{"boolTrue", "boolFalse"} {
 		v, ok := myTestRecord.Value(key)
 		if !ok {
 			t.Errorf("unexpected for key %q", key)
 		}
 		if _, ok := v.(bool); !ok {
 			t.Errorf("unexpected bool format for key %q", key)
+		}
+	}
+
+	// Value hands back the stored type untouched, so a number stays a number.
+	for _, key := range []string{"int2134", "int0"} {
+		v, ok := myTestRecord.Value(key)
+		if !ok {
+			t.Errorf("unexpected for key %q", key)
+		}
+		if _, ok := v.(int); !ok {
+			t.Errorf("unexpected int format for key %q, got %T", key, v)
 		}
 	}
 
@@ -266,7 +305,7 @@ func TestRecord_GetSortedKeys(t *testing.T) {
 	keys := testRecord.GetSortedKeys()
 
 	if l := len(keys); l != len(expectedRecord) {
-		t.Errorf("unexpected len of result: got: %q, expected: %q", l, len(expectedRecord))
+		t.Errorf("unexpected len of result: got: %d, expected: %d", l, len(expectedRecord))
 	}
 
 	for n, key := range keys {
@@ -277,7 +316,7 @@ func TestRecord_GetSortedKeys(t *testing.T) {
 	}
 
 	if l := len(Record{}.GetSortedKeys()); l != 0 {
-		t.Errorf("unexpected len of result: got: %q, expected: %q", l, 0)
+		t.Errorf("unexpected len of result: got: %d, expected: %d", l, 0)
 
 	}
 }

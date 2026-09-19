@@ -21,10 +21,10 @@ Requires Go 1.25 or later.
 | [`manchester/decoder`](manchester/README.md) | Manchester decoder with automatic clock discovery and tolerance handling |
 | `web`                | Composable `http.Handler` middleware: auth, CORS, IP filter, logging, JSON helpers            |
 | `jwt_util`           | Generation and validation of signed JWTs with issuer/subject/ID checks                        |
-| `crypt`              | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString`            |
+| [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString`      |
 | `xlog`               | `log/slog` wrapper with destination and level selection                                       |
 | `mqtt`               | Thread-safe Eclipse Paho client wrapper with reconnect handling                               |
-| `keyvalue`           | Generic `map[string]any` record with converting typed accessors                               |
+| [`keyvalue`](keyvalue/README.md) | Generic `map[string]any` record with converting typed accessors                   |
 
 Every package carries a doc comment with a runnable usage example — `go doc github.com/womat/golib/<pkg>`
 is the fastest way to get started. The two larger subsystems have a README of their own:

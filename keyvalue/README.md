@@ -33,14 +33,19 @@ database driver may well hand out — reads as the zero value.
 
 Three rules are worth knowing before they surprise you:
 
-**`Bool` asks whether the value equals one**, not whether it is non-zero.
+**`Bool` is true for any non-zero number**, with `NaN` as the one exception —
+"not a number" is not a truth value. Strings that name a truth value are
+recognised as such; everything else is read as a number and follows the same
+rule, so `"2"` and `2` cannot disagree.
 
 | value | `Bool` |
 |-------|--------|
-| `1`, `1.0`, `int64(1)`, `"1"`, `true` | `true` |
-| `"true"`, `"yes"`, `"on"` | `true` |
-| `2`, `-1`, `7`, `"2"` | **`false`** |
-| `0`, `"false"`, `"no"`, `"off"`, `""` | `false` |
+| `1`, `2`, `-1`, `0.1`, `int64(7)` | `true` |
+| `"1"`, `"2"`, `"-1"`, `"0.5"` | `true` |
+| `"true"`, `"yes"`, `"on"` (any case) | `true` |
+| `0`, `0.0`, `-0.0` | `false` |
+| `math.NaN()`, `"NaN"` | `false` |
+| `"false"`, `"no"`, `"off"`, `""`, `"a"` | `false` |
 
 **`Int` is as wide as the platform's `int`.** On a 32-bit platform — which
 includes the `GOARCH=arm` builds for the Raspberry Pi 1, Zero and the 32-bit
@@ -52,6 +57,23 @@ number. Use `Int64` where the range matters.
 float `3.9` is `3`. A float outside the `int64` range, an infinity or a NaN
 reads as `0` rather than as whatever the platform's conversion happens to
 produce.
+
+## Creating a record
+
+Use `NewRecord()` or a `Record{}` literal before writing. The zero value of
+`Record` is a nil map: reading from it is harmless and yields zero values
+throughout — `Int`, `Bool`, `Exists`, `Copy` and `GetSortedKeys` all work — but
+`Set` panics with `assignment to entry in nil map`. It is the one place where
+the package does not simply hand back a zero value.
+
+```go
+var r keyvalue.Record // nil map
+r.Int("x")            // 0, fine
+r.Set("x", 1)         // panic
+
+r = keyvalue.NewRecord()
+r.Set("x", 1)         // fine
+```
 
 ## Concurrency
 
