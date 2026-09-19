@@ -4,9 +4,9 @@
 package app
 
 import (
-	"demo_app/app/service/health"
 	"net/http"
 
+	"github.com/womat/golib/demo/demo_app/app/service/health"
 	"github.com/womat/golib/web"
 )
 
