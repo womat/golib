@@ -1,6 +1,7 @@
 package keyvalue
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -102,13 +103,15 @@ func Test_String(t *testing.T) {
 
 func Test_Int(t *testing.T) {
 
-	expectedConverted := map[string]interface{}{
+	// Typed as int, not interface{}: an untyped constant that exceeds a 32-bit
+	// int fails to compile for GOARCH=arm, one of this repository's targets.
+	// The two phone numbers below therefore live outside this map.
+	expectedConverted := map[string]int{
 		"":            0,
 		"emptyString": 0,
 		"stringa":     0,
 		"string1":     1,
 		"string0":     0,
-		"stringPhone": 4306644447701,
 		"int2134":     2134,
 		"float3.14":   3,
 		"boolTrue":    1,
@@ -120,13 +123,27 @@ func Test_Int(t *testing.T) {
 		"float1.0":    1,
 		"float-1.0":   -1,
 		"float0.1":    0,
-		"floatPhone":  4306644447701,
 	}
 
 	for k, v := range expectedConverted {
 		x := myTestRecord.Int(k)
 		if x != v {
 			t.Errorf("unexpected (converted) input = %v, output = %v", k, x)
+		}
+	}
+
+	// A phone number does not fit a 32-bit int. Where it does not, Int reports
+	// 0 rather than a truncated number; see TestIntNarrowingOnSmallPlatforms.
+	var phone int64 = 4306644447701
+
+	want := 0
+	if strconv.IntSize == 64 {
+		want = int(phone)
+	}
+
+	for _, key := range []string{"stringPhone", "floatPhone"} {
+		if x := myTestRecord.Int(key); x != want {
+			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", key, x, want)
 		}
 	}
 }

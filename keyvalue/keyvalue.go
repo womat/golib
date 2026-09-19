@@ -1,10 +1,35 @@
 // Package keyvalue provides a generic key-value record type with type-safe accessors.
 // Values can be retrieved as bool, int, int64, float64, or string with automatic type conversion.
 // For raw access without conversion, use the Value method.
+//
+// # Conversion
+//
+// Only bool, int, int64, float64 and string are understood as source types.
+// Every other type - the remaining integer widths a database driver may hand
+// out among them - reads as the zero value of the requested type, exactly like
+// a missing key. The accessors never report an error, so use Exists or Value
+// where the difference matters.
+//
+// Two rules are easy to get wrong:
+//
+//   - Bool asks whether the value equals one, not whether it is non-zero.
+//     2, -1 and "2" are therefore false, while "true", "yes" and "on" are true.
+//   - Int returns the platform's int. On a 32-bit platform, which includes the
+//     GOARCH=arm builds for the Raspberry Pi, a value that does not fit reads
+//     as 0 rather than as a truncated number. Use Int64 where the range
+//     matters.
+//
+// # Concurrency
+//
+// Record is a plain map and is not safe for concurrent use. Reading from
+// several goroutines is fine as long as nobody writes; a concurrent Set is a
+// data race and will abort the process with "concurrent map writes". Guard it
+// with a mutex, or hand out copies made with Copy.
 package keyvalue
 
 import (
 	"fmt"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -24,8 +49,9 @@ func (r Record) Exists(key string) bool {
 	return ok
 }
 
-// Value returns the raw value for key, or nil if not found.
-// Use this for special cases where type conversion is not desired.
+// Value returns the raw value for key and whether the key exists.
+// Use this for special cases where type conversion is not desired, or to tell
+// a missing key from one holding a zero value.
 func (r Record) Value(key string) (any, bool) {
 	v, ok := r[key]
 	return v, ok
@@ -39,6 +65,11 @@ func (r Record) Set(key string, value any) {
 // Bool returns the bool value for key.
 // Converts from string, int, int64, and float64 if necessary.
 // Returns false if not found or not convertible.
+//
+// A number is true when it equals one, not when it is non-zero: 2 and -1 are
+// false. For strings, "true", "yes", "on" and "1" are true, "false", "no",
+// "off" and "0" are false, and anything else is true only if it parses as the
+// number one.
 func (r Record) Bool(key string) bool {
 	switch i := r[key].(type) {
 	case bool:
@@ -89,12 +120,16 @@ func (r Record) Float64(key string) float64 {
 // Int returns the int value for key.
 // Converts from string, int64, float64, and bool if necessary.
 // Returns 0 if not found or not convertible.
+//
+// A value outside the range of int counts as not convertible. On a 32-bit
+// platform - which includes the GOARCH=arm builds for the Raspberry Pi - that
+// range is considerably smaller than the one of Int64.
 func (r Record) Int(key string) int {
 	switch i := r[key].(type) {
 	case float64:
-		return int(i)
+		return narrowToInt(floatToInt64(i))
 	case int64:
-		return int(i)
+		return narrowToInt(i)
 	case int:
 		return i
 	case string:
@@ -111,11 +146,12 @@ func (r Record) Int(key string) int {
 
 // Int64 returns the int64 value for key.
 // Converts from string, int, float64, and bool if necessary.
-// Returns 0 if not found or not convertible.
+// Returns 0 if not found or not convertible, which includes a float outside
+// the range of int64, an infinity, and NaN.
 func (r Record) Int64(key string) int64 {
 	switch i := r[key].(type) {
 	case float64:
-		return int64(i)
+		return floatToInt64(i)
 	case int64:
 		return i
 	case int:
@@ -155,7 +191,10 @@ func (r Record) String(key string) string {
 }
 
 // Copy returns a shallow copy of the record.
-// Note: pointer values (maps, slices, structs) are not deep copied.
+//
+// The map itself is independent of the original, so the copy can be handed to
+// another goroutine. The values are not: a map, slice or pointer stays shared
+// with the original and is not safe to modify from both sides.
 func (r Record) Copy() Record {
 	record := make(Record, len(r))
 	for k, v := range r {
@@ -172,4 +211,38 @@ func (r Record) GetSortedKeys() []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// floatToInt64 converts f to an int64, truncating towards zero.
+//
+// It returns 0 for NaN and for anything outside the int64 range. Go leaves
+// such a conversion implementation defined - on arm64 it saturates to
+// MaxInt64, on other platforms the result may differ - and a silently wrong
+// number is worse than the zero the accessors document for a value that
+// cannot be converted.
+func floatToInt64(f float64) int64 {
+	const (
+		// math.MaxInt64 is not exactly representable as a float64; the
+		// conversion rounds up to 2^63, so the comparison has to exclude it.
+		upperBound = float64(math.MaxInt64) // 2^63
+		lowerBound = float64(math.MinInt64) // -2^63, exactly representable
+	)
+
+	if math.IsNaN(f) || f >= upperBound || f < lowerBound {
+		return 0
+	}
+
+	return int64(f)
+}
+
+// narrowToInt converts v to an int, returning 0 if it does not fit.
+//
+// On a 64-bit platform this never rejects anything; on a 32-bit one it is what
+// keeps a truncated value from being mistaken for a real one.
+func narrowToInt(v int64) int {
+	if int64(int(v)) != v {
+		return 0
+	}
+
+	return int(v)
 }
