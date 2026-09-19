@@ -48,6 +48,12 @@ world changing the line and works on input pins, which `SetValue` deliberately r
 That is how receiving code (the Manchester decoder, for instance) is tested without
 hardware; `rpiemu.NewPin` returns `rpiemu.Pin`, which embeds `gpio.Pin`.
 
+Both backends share `gpio/internal/watch`: the channel a consumer ranges over, the edge
+mask, drop counting and the shutdown that closes the channel. It exists because that logic
+is where the concurrency bugs live, and `gpio/rpi` itself cannot be tested off a Pi —
+keeping the delivery there down to a one-line call means the untestable part is a thin
+adapter over code that is tested under `-race`.
+
 **Manchester signal chain.** `manchester/encoder` and `manchester/decoder` are deliberately
 decoupled from `gpio`: the encoder takes a `SetValue func(Level) error` callback, and the
 decoder consumes a channel of its own `decoder.Event` values. The demos do the glue — a
@@ -102,8 +108,9 @@ logs — note `crypt` ships a compiled-in default AES key, so production code mu
 ## Known state
 
 `go vet ./...` and `go test ./...` are clean except for `gpio/rpi`, which cannot be built on
-macOS because `go-gpiocdev` is Linux-only — see the note under Commands. Everything else
-builds and tests on any platform.
+macOS because `go-gpiocdev` is Linux-only — see the note under Commands. `GOOS=linux go vet
+./...` covers the whole repository including that package, and is worth running before
+committing changes under `gpio/`.
 
-`demo/demo_app` does not compile: `app/api_health.go` imports `demo_app/app/service/health`
-instead of the module path `github.com/womat/golib/demo/demo_app/app/service/health`.
+`gpio/rpi` has no tests: exercising it needs a real GPIO chip. Its example is compiled but
+deliberately carries no `Output:` comment, so `go test` does not try to run it.
