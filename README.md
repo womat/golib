@@ -23,7 +23,7 @@ Requires Go 1.25 or later.
 | `jwt_util`           | Generation and validation of signed JWTs with issuer/subject/ID checks                        |
 | [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString`      |
 | `xlog`               | `log/slog` wrapper with destination and level selection                                       |
-| `mqtt`               | Thread-safe Eclipse Paho client wrapper with reconnect handling                               |
+| [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling                           |
 | [`keyvalue`](keyvalue/README.md) | Generic `map[string]any` record with converting typed accessors                   |
 
 Every package carries a doc comment with a runnable usage example — `go doc github.com/womat/golib/<pkg>`
