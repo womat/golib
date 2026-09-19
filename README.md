@@ -149,8 +149,12 @@ of reaching for the global logger.
 via the `TextMarshaler` and `BinaryMarshaler` interfaces, so encrypted secrets can live in
 YAML or JSON configuration without ever being written back in clear text.
 
-The symmetric encryption ships with a compiled-in default AES key for convenience — call
-`SetKey` with your own 256-bit key in production.
+The symmetric encryption ships with a compiled-in default AES key. `SymCrypt` lets you
+replace it with `SetKey`; `EncryptedString` does not — it always encrypts with the default
+key. Treat `EncryptedString` as protection against *accidental* disclosure (a config file
+in a screenshot, a struct dumped to a log), not as protection against anyone who can read
+the file. The full security model, including what `SetKey` does with keys that are not
+exactly 32 bytes, is in [`crypt/README.md`](crypt/README.md).
 
 ## Demos
 
@@ -185,7 +189,7 @@ injected through `-ldflags`, and a Swagger UI that is compiled in only with
     go build ./...
     go vet ./...
     go test ./...
-    go test ./crypt/... -run TestSymCrypt -v
+    go test ./crypt/... -run TestAES -v
 
 `gpio/rpi` depends on the Linux GPIO character device and therefore does not build on
 macOS or Windows; use `GOOS=linux go build ./gpio/rpi/` for a compile check.
