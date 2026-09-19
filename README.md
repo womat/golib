@@ -14,11 +14,11 @@ Requires Go 1.25 or later.
 
 | Package              | Purpose                                                                                     |
 |----------------------|---------------------------------------------------------------------------------------------|
-| `gpio`               | Backend-agnostic `Pin` interface: levels, modes, pull resistors, edge events                  |
+| [`gpio`](gpio/README.md) | Backend-agnostic `Pin` interface: levels, modes, pull resistors, edge events              |
 | `gpio/rpi`           | Linux implementation using the GPIO character device (`go-gpiocdev`)                          |
 | `gpio/rpiemu`        | In-memory GPIO emulator for tests and development without hardware                            |
-| `manchester/encoder` | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending   |
-| `manchester/decoder` | Manchester decoder with automatic clock discovery and tolerance handling                      |
+| [`manchester/encoder`](manchester/README.md) | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending |
+| [`manchester/decoder`](manchester/README.md) | Manchester decoder with automatic clock discovery and tolerance handling |
 | `web`                | Composable `http.Handler` middleware: auth, CORS, IP filter, logging, JSON helpers            |
 | `jwt_util`           | Generation and validation of signed JWTs with issuer/subject/ID checks                        |
 | `crypt`              | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString`            |
@@ -27,7 +27,8 @@ Requires Go 1.25 or later.
 | `keyvalue`           | Generic `map[string]any` record with converting typed accessors                               |
 
 Every package carries a doc comment with a runnable usage example — `go doc github.com/womat/golib/<pkg>`
-is the fastest way to get started.
+is the fastest way to get started. The two larger subsystems have a README of their own:
+[gpio](gpio/README.md) and [manchester](manchester/README.md).
 
 ## GPIO
 
