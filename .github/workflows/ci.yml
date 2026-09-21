@@ -1,0 +1,178 @@
+# Continuous integration for github.com/womat/golib.
+#
+# Why this exists: gpio/rpi does not build on macOS, which is where this library
+# is written, so "go test ./..." on a developer machine cannot cover it. Broken
+# gpio tests and a demo_app that did not compile went unnoticed for months. The
+# library jobs below run on Linux, where gpio/rpi builds natively and is
+# therefore checked like any other package.
+#
+# Everything under demo/ is a separate Go module with its own go.mod and a
+# replace directive pointing at the repository root, so a root-level "go build
+# ./..." ignores the demos entirely. They get their own jobs.
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A new push to the same ref supersedes a run still in flight.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  format:
+    name: gofmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Covers the demo modules too - gofmt does not care about module
+      # boundaries, and running it once is cheaper than once per module.
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "These files are not gofmt'd:" >&2
+            echo "$unformatted" >&2
+            exit 1
+          fi
+
+  library:
+    name: library (go ${{ matrix.go }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 1.25.0 is what go.mod declares and what README.md promises; stable
+        # catches what a newer toolchain starts complaining about.
+        go: ["1.25.0", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+      - name: go vet
+        run: go vet ./...
+      # -race because the concurrency in gpio/internal/watch and the two
+      # manchester packages is the part worth testing.
+      - name: go test
+        run: go test -race -cover ./...
+
+  cross:
+    name: cross-compile library (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Pi 1 / Zero", goos: linux, goarch: arm, goarm: "6" }
+          - { name: "Pi 2/3/4 32-bit", goos: linux, goarch: arm, goarm: "7" }
+          - { name: "Pi 3/4/5 64-bit", goos: linux, goarch: arm64 }
+          - { name: "linux amd64", goos: linux, goarch: amd64 }
+          - { name: "linux 386", goos: linux, goarch: "386" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      # Only Linux targets: gpio/rpi depends on the Linux GPIO character device,
+      # so the library as a whole cannot be built for Windows or macOS.
+      - name: go build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: go build ./...
+
+  demos:
+    name: demo ${{ matrix.demo }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        demo: [blinker, listener, manchester_sender, manchester_listener]
+    defaults:
+      run:
+        working-directory: demo/${{ matrix.demo }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: demo/${{ matrix.demo }}/go.mod
+      - name: go vet
+        run: go vet ./...
+      - name: go build
+        run: go build -o /dev/null ./cmd
+      # These four drive real GPIO lines and have no tests; building them is
+      # what keeps the library's API changes from breaking its own examples.
+
+  demo_app:
+    name: demo_app
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: demo/demo_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: demo/demo_app/go.mod
+      # app/certs/ is deliberately not committed and webservices.go embeds it,
+      # so nothing compiles before this runs.
+      - name: generate dev certificate
+        run: make ensure_dev_certs
+      - name: go vet
+        run: go vet ./...
+      - name: go test
+        run: go test -race -cover ./...
+      - name: go build
+        run: go build ./...
+      # Swagger lives behind a build tag so production binaries carry no docs
+      # UI. That also means the tagged build is never exercised by default -
+      # it was broken by a stale import path once already.
+      - name: go build -tags swagger
+        run: go build -tags swagger ./...
+
+  demo_app_cross:
+    name: cross-compile demo_app (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    needs: demo_app
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: "Pi 1 / Zero", goos: linux, goarch: arm, goarm: "6" }
+          - { name: "Pi 2/3/4 32-bit", goos: linux, goarch: arm, goarm: "7" }
+          - { name: "Pi 3/4/5 64-bit", goos: linux, goarch: arm64 }
+          - { name: "linux amd64", goos: linux, goarch: amd64 }
+          - { name: "linux 386", goos: linux, goarch: "386" }
+          - { name: "windows amd64", goos: windows, goarch: amd64 }
+          - { name: "windows 386", goos: windows, goarch: "386" }
+          - { name: "macOS arm64", goos: darwin, goarch: arm64 }
+    defaults:
+      run:
+        working-directory: demo/demo_app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: demo/demo_app/go.mod
+      - name: generate dev certificate
+        run: make ensure_dev_certs
+      # One target per build_* recipe in the Makefile. demo_app does not import
+      # gpio, which is why it reaches Windows and macOS and the library does not.
+      - name: go build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          GOARM: ${{ matrix.goarm }}
+        run: go build ./...

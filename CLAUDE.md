@@ -149,3 +149,17 @@ committing changes under `gpio/`.
 
 `gpio/rpi` has no tests: exercising it needs a real GPIO chip. Its example is compiled but
 deliberately carries no `Output:` comment, so `go test` does not try to run it.
+
+**`demo/demo_app` does not build from a fresh clone.** `app/webservices.go` embeds
+`certs/dev_cert.pem` and `certs/dev_key.pem`, and `app/certs/` is gitignored on purpose —
+run `make ensure_dev_certs` (needs `openssl`) before `go build`. This is why the CI job for
+that module generates the certificate as its first step.
+
+**CI:** `.github/workflows/ci.yml`, on pushes to `main`/`develop` and on pull requests.
+Six jobs: `format` (gofmt over the whole tree), `library` (vet plus `go test -race -cover`
+on Go 1.25.0 *and* stable), `cross` (the five Linux targets the library can be built for —
+Windows and macOS are impossible because of `gpio/rpi`), `demos` (the four small modules),
+`demo_app` (certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target
+per `build_*` recipe in its Makefile). It runs on Linux precisely because the local checks
+cannot be complete on macOS. When adding a package or a demo module, extend the matrices:
+a new demo module is invisible to every existing job.

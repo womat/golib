@@ -1,5 +1,7 @@
 # golib
 
+[![CI](https://github.com/womat/golib/actions/workflows/ci.yml/badge.svg)](https://github.com/womat/golib/actions/workflows/ci.yml)
+
 `golib` contains all shareable Go packages of womat.
 
 The library targets small Linux services and Raspberry Pi applications: GPIO
@@ -148,7 +150,33 @@ before committing anything under `gpio/`:
     GOOS=linux go vet ./...
 
 The demos are separate modules and are not covered by any of the above. Build
-them from inside their own directory.
+them from inside their own directory. `demo/demo_app` additionally needs its
+development certificate generated first, because `app/webservices.go` embeds it
+and `app/certs/` is deliberately not committed:
+
+    cd demo/demo_app
+    make ensure_dev_certs
+    go build ./...
+
+### CI
+
+`.github/workflows/ci.yml` runs on every push to `main` and `develop` and on
+every pull request. It exists because the checks above cannot be complete on a
+macOS machine: on a Linux runner `gpio/rpi` builds natively and is tested like
+any other package.
+
+| Job | Covers |
+|---|---|
+| `format` | `gofmt` over the whole tree, demos included |
+| `library` | `go vet` and `go test -race -cover`, on Go 1.25.0 *and* stable |
+| `cross` | the five Linux targets the library can be built for |
+| `demos` | `go vet` and a build of each of the four small demo modules |
+| `demo_app` | certificate, vet, race tests, and the `swagger`-tagged build |
+| `demo_app_cross` | one target per `build_*` recipe in its `Makefile` |
+
+The `library` job pins Go 1.25.0 as its own matrix entry so the minimum version
+promised at the top of this file stays true, rather than being true only for
+whatever toolchain happens to be installed.
 
 ## Tagging a new version
 
