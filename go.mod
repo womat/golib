@@ -1,6 +1,6 @@
 module github.com/womat/golib
 
-go 1.27.0
+go 1.27
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1

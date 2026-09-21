@@ -165,7 +165,7 @@ cannot be complete on macOS. When adding a package or a demo module, extend the 
 a new demo module is invisible to every existing job.
 
 Every job takes its Go version from the `go.mod` of the module it builds, and **all six
-modules declare the same `go 1.27.0`** — raised from 1.25.0/1.26 on 21.09.2026, deliberately
+modules declare the same `go 1.27`** — raised from 1.25.0/1.26 on 21.09.2026, deliberately
 supporting one version rather than a range. Keep them in step; a module left behind silently
 gets a different toolchain in CI. Of the consumers only `tadl` and `s0meter` import this
 library (`signit` and `sqlite4router` carry their own `crypt` copies), and `tadl` still
