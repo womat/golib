@@ -170,3 +170,10 @@ supporting one version rather than a range. Keep them in step; a module left beh
 gets a different toolchain in CI. Of the consumers only `tadl` and `s0meter` import this
 library (`signit` and `sqlite4router` carry their own `crypt` copies), and `tadl` still
 declares `go 1.25.0` — it needs its own directive raised when it picks up the next tag.
+
+**Dependencies:** `.github/dependabot.yml`, weekly, one `gomod` entry per module plus the
+GitHub Actions themselves, with updates grouped (`golang.org/x/*`, the swagger generator,
+everything else). It exists because by 21.09.2026 `golang.org/x/crypto` was nine minor
+releases behind. When updating by hand, raise the direct requirements and let `go mod tidy`
+settle the rest — `go get -u ./...` in `demo/demo_app` drags the whole swagger graph
+forward, which affects only `docs/generate.sh` and has broken the tagged build before.

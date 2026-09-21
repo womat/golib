@@ -1,0 +1,56 @@
+# Keeps dependencies from drifting the way they had by 21.09.2026, when
+# golang.org/x/crypto was nine minor releases behind in a repository that
+# contains a package called crypt.
+#
+# One gomod entry per module: everything under demo/ has its own go.mod, so a
+# single entry would leave five modules unwatched. Updates are grouped, because
+# these modules move together and six separate pull requests for the same
+# golang.org/x bump are noise.
+#
+# To switch this off, delete this file. The CI workflow does not depend on it.
+
+version: 2
+
+updates:
+  - package-ecosystem: gomod
+    directories:
+      - /
+      - /demo/blinker
+      - /demo/listener
+      - /demo/manchester_sender
+      - /demo/manchester_listener
+      - /demo/demo_app
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      # Matches this repository's "type() description" convention.
+      prefix: "chore()"
+    groups:
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
+      # The swagger generator drags in a large graph of its own that only
+      # affects docs/generate.sh, never the production binary.
+      swagger:
+        patterns:
+          - "github.com/swaggo/*"
+          - "github.com/go-openapi/*"
+      everything-else:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "golang.org/x/*"
+          - "github.com/swaggo/*"
+          - "github.com/go-openapi/*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: "ci()"
+    groups:
+      actions:
+        patterns:
+          - "*"
