@@ -155,6 +155,16 @@ deliberately carries no `Output:` comment, so `go test` does not try to run it.
 run `make ensure_dev_certs` (needs `openssl`) before `go build`. This is why the CI job for
 that module generates the certificate as its first step.
 
+**Checking locally:** `scripts/check.sh` runs `go fix`, `go vet`, `golangci-lint` and
+`govulncheck` over all six modules, defaulting to `GOOS=linux` and generating `demo_app`'s
+certificate first. `--check` reports pending `go fix` work without writing, `--skip=vuln`
+drops the step that needs a network. Prefer it over running the tools by hand: `go fix
+./...`, `go vet ./...` and `golangci-lint run ./...` all abort on `gpio/rpi` on macOS, and
+none of them see the demo modules. As of 21.09.2026 `golangci-lint` reports 20 findings
+(16 `errcheck`, almost all an unchecked `defer x.Close()` in tests and demos, 1
+`ineffassign` in `gpio/rpi`, 3 `staticcheck` suggestions); they are not addressed and the
+script therefore exits non-zero on `lint`.
+
 **CI:** `.github/workflows/ci.yml`, on pushes to `main`/`develop` and on pull requests.
 Six jobs: `format` (gofmt over the whole tree), `library` (vet plus `go test -race -cover`),
 `cross` (the five Linux targets the library can be built for — Windows and macOS are

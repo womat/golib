@@ -158,6 +158,26 @@ and `app/certs/` is deliberately not committed:
     make ensure_dev_certs
     go build ./...
 
+### Checking everything at once
+
+`scripts/check.sh` runs `go fix`, `go vet`, `golangci-lint` and `govulncheck`
+over all six modules:
+
+    scripts/check.sh              # apply fixes, check everything
+    scripts/check.sh --check      # report pending fixes, change nothing
+    scripts/check.sh --skip=vuln  # leave out the step that needs a network
+    scripts/check.sh demo/demo_app
+
+It defaults to `GOOS=linux`, which is the only setting under which `gpio/rpi` is
+checked at all — every one of these tools needs full type information, so on
+macOS that one package otherwise aborts the whole run with errors from inside
+`go-gpiocdev` that look like a broken tool. It also visits each module
+separately, because a root-level `./...` never sees the demos, and generates
+`demo_app`'s certificate first.
+
+`golangci-lint` and `govulncheck` are not vendored; the script names the
+`go install` line if one is missing.
+
 ### CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and `develop` and on
