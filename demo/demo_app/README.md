@@ -68,6 +68,38 @@ CONFIG_FILE=/etc/demo_app/config.yaml demo_app
 
 ## Configuration
 
+### Environment variables
+
+Values may reference environment variables as `${NAME}`:
+
+```yaml
+webserver:
+  apiKey: ${DEMO_APP_API_KEY}
+```
+
+Only that braced form is expanded. A bare `$NAME` is left alone, so a value like
+`pa$$w0rd` survives unchanged — `os.ExpandEnv` over the whole file used to turn
+it into `pa`. A referenced variable that is not set is an error naming it, not
+an empty string, because an empty secret is the kind of mistake that only shows
+up in production.
+
+### What is validated at startup
+
+Beyond the environment, the API key, the log level and the port range:
+
+| Check | Applies |
+|---|---|
+| `certFile` and `keyFile` are configured | `env: prod` only |
+| `apiKey` is not the shipped placeholder `changeme!` | `env: prod` only |
+| `jwtSecret` and `jwtID` are set together or not at all | always |
+| `logDestination` is a known name, or a path whose directory exists | always |
+| `listenHost` is empty, an IP address or `localhost` | always |
+| every entry of `allowedIPs`/`blockedIPs` parses as IP or CIDR | always |
+
+The IP lists are the reason for the last row: a typo there would otherwise
+become a rule that silently never matches.
+
+
 Default location: `/opt/demo_app/etc/config.yaml`
 Environment variables are expanded inside the file, e.g. `apiKey: ${TADL_API_KEY}`.
 
@@ -119,6 +151,20 @@ webserver:
 ---
 
 ## TLS Certificate
+
+**The embedded development certificate is only used in `env: dev`.** The binary
+carries a self-signed pair (`app/certs/`) so that a fresh checkout starts over
+HTTPS without preparation. That pair is public — it lives in this repository,
+its private key included — and it is issued for `localhost` and nothing else.
+Treat it as scaffolding, never as protection.
+
+With `env: prod` a missing `certFile` or `keyFile` is a startup error, not a
+fallback: the service refuses to come up rather than serve a certificate whose
+private key everybody has. `Validate()` additionally insists that both paths are
+configured in `prod`, so the mistake is caught before the listener opens.
+
+`make ensure_dev_certs` generates a fresh pair into `app/certs/` if you would
+rather not ship the checked-in one.
 
 Generate a self-signed certificate for development:
 
