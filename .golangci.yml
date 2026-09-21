@@ -1,0 +1,47 @@
+# golangci-lint configuration for github.com/womat/golib.
+#
+# Run it through scripts/check.sh rather than directly: every linter here needs
+# full type information, so on macOS gpio/rpi aborts the run, and the five
+# modules under demo/ are invisible to a root-level ./...
+#
+# The default linter set is kept. The exclusions below are decisions, not
+# convenience - each one says why.
+
+version: "2"
+
+linters:
+  settings:
+    errcheck:
+      # This library's convention is that every resource-owning type has an
+      # explicit Close/Disconnect that callers must defer (see CLAUDE.md). A
+      # deferred Close has nowhere to return an error to, so errcheck and the
+      # convention are in direct conflict; the convention wins. Listed
+      # explicitly rather than switching errcheck off, so an unchecked error
+      # from anything else still gets reported.
+      exclude-functions:
+        - (github.com/womat/golib/gpio.Pin).Close
+        - (github.com/womat/golib/gpio/rpiemu.Pin).Close
+        - (*github.com/womat/golib/manchester/encoder.Encoder).Close
+        - (*github.com/womat/golib/manchester/decoder.Decoder).Close
+        - (*github.com/womat/golib/xlog.LoggerWrapper).Close
+
+  exclusions:
+    rules:
+      # Test code may ignore what it is not asserting on: a deferred Close, an
+      # os.Remove of a temporary directory, a SetValue whose effect the test
+      # then checks by other means. Reporting those buries the findings that
+      # matter under a list of things nobody intends to handle.
+      - path: _test\.go
+        linters:
+          - errcheck
+
+      # crypt is deliberately frozen (19.09.2026): a change there would force a
+      # major tag and make this copy diverge from the ones in signit and
+      # sqlite4router, which carry their own. The finding is real - Compare
+      # should read "return err == nil" - and it is recorded in
+      # crypt/README.md under "Not addressed" instead of being fixed here.
+      # Excluded by path so the file stays byte-identical to those copies.
+      - path: ^crypt/
+        text: "S1008"
+        linters:
+          - staticcheck

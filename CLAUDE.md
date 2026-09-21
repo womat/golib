@@ -160,17 +160,26 @@ that module generates the certificate as its first step.
 certificate first. `--check` reports pending `go fix` work without writing, `--skip=vuln`
 drops the step that needs a network. Prefer it over running the tools by hand: `go fix
 ./...`, `go vet ./...` and `golangci-lint run ./...` all abort on `gpio/rpi` on macOS, and
-none of them see the demo modules. As of 21.09.2026 `golangci-lint` reports 20 findings
-(16 `errcheck`, almost all an unchecked `defer x.Close()` in tests and demos, 1
-`ineffassign` in `gpio/rpi`, 3 `staticcheck` suggestions); they are not addressed and the
-script therefore exits non-zero on `lint`.
+none of them see the demo modules. All four steps are clean in all six
+modules as of 21.09.2026.
+
+Linter configuration is `.golangci.yml` at the root — the demo modules find it by walking
+up, so there is one file, not six. The default linter set is kept and every exclusion
+states its reason: `errcheck` ignores the `Close` methods of the resource-owning types,
+because this repository's own convention is that callers `defer` them and a deferred call
+has nowhere to return an error to; test files are exempt from `errcheck` entirely; and
+`crypt` is exempt from `S1008` because that package is frozen and must stay byte-identical
+to the copies in `signit` and `sqlite4router` — the finding is recorded in
+`crypt/README.md` under *Not addressed* instead. **Do not widen these exclusions to make a
+new finding go away; fix the finding or record the decision.**
 
 **CI:** `.github/workflows/ci.yml`, on pushes to `main`/`develop` and on pull requests.
-Six jobs: `format` (gofmt over the whole tree), `library` (vet plus `go test -race -cover`),
-`cross` (the five Linux targets the library can be built for — Windows and macOS are
-impossible because of `gpio/rpi`), `demos` (the four small modules), `demo_app`
-(certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target per
-`build_*` recipe in its Makefile). It runs on Linux precisely because the local checks
+Seven jobs: `format` (gofmt over the whole tree), `checks` (`scripts/check.sh --check`, so
+the CI and the local command cannot drift apart), `library` (vet plus
+`go test -race -cover`), `cross` (the five Linux targets the library can be built for —
+Windows and macOS are impossible because of `gpio/rpi`), `demos` (the four small modules),
+`demo_app` (certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target
+per `build_*` recipe in its Makefile). It runs on Linux precisely because the local checks
 cannot be complete on macOS. When adding a package or a demo module, extend the matrices:
 a new demo module is invisible to every existing job.
 

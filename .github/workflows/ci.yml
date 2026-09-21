@@ -46,6 +46,30 @@ jobs:
             exit 1
           fi
 
+  checks:
+    name: fix, lint, vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # Pinned rather than @latest: a new release of either tool would
+      # otherwise turn this job red without a change in this repository. Raise
+      # them deliberately - dependabot does not see a go install line.
+      - name: install tools
+        run: |
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+
+      # The same script a developer runs, so the two cannot drift. --check makes
+      # go fix report a pending diff and exit non-zero instead of writing it.
+      # Note this will go red on its own when a future Go release adds a fixer:
+      # that is the point, and "scripts/check.sh" applies what it wants.
+      - name: scripts/check.sh --check
+        run: scripts/check.sh --check
+
   library:
     name: library
     runs-on: ubuntu-latest

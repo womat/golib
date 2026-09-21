@@ -176,7 +176,11 @@ separately, because a root-level `./...` never sees the demos, and generates
 `demo_app`'s certificate first.
 
 `golangci-lint` and `govulncheck` are not vendored; the script names the
-`go install` line if one is missing.
+`go install` line if one is missing. Linter behaviour is configured in
+[`.golangci.yml`](.golangci.yml), where each exclusion carries the reason it
+exists — `errcheck` against a deferred `Close` is excluded because this
+library's own convention requires that `defer`, and `crypt` is excluded from one
+`staticcheck` finding because that package is deliberately frozen.
 
 ### CI
 
@@ -188,6 +192,7 @@ any other package.
 | Job | Covers |
 |---|---|
 | `format` | `gofmt` over the whole tree, demos included |
+| `checks` | `scripts/check.sh --check`: pending `go fix` work, `golangci-lint`, `govulncheck` |
 | `library` | `go vet` and `go test -race -cover` |
 | `cross` | the five Linux targets the library can be built for |
 | `demos` | `go vet` and a build of each of the four small demo modules |
