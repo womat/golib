@@ -34,6 +34,23 @@ per-architecture targets (`build_arm6`, `build_arm7`, `build_arm64`, `build_linu
 
 Version tagging is done on the whole library at once (`git tag -a vX.Y.Z -m "..."; git push --tags`).
 
+**This repository always authenticates as `womat`.** The machine's `gh` may have another
+account active (`itd-mathe`, for instance) and the macOS keychain may hold its credential,
+in which case a push either fails or would land under the wrong identity. `.git/config` is
+not versioned, so a fresh clone needs this once:
+
+```sh
+git config --local --replace-all credential.helper ""
+git config --local --add credential.helper \
+  '!f() { test "$1" = get && printf "username=womat\npassword=%s\n" "$(gh auth token -u womat)"; }; f'
+git config --local credential.username womat
+```
+
+The empty first value resets the inherited helper list for this repository, so the keychain
+entry of another account cannot answer first; the helper then takes the token from
+`gh auth token -u womat` without switching the globally active `gh` account. Verify with
+`git push --dry-run origin develop`.
+
 ## Architecture
 
 **Interface + backends.** `gpio` defines the `Pin` interface (levels, modes, pulls, edge
