@@ -26,10 +26,21 @@ webserver:
   listenPort: 8443
 
   # Global API key for protected endpoints.
-  # Values may reference environment variables as ${NAME}; a bare $NAME is left
-  # alone, so a value like pa$$w0rd stays intact. With env: prod this key must
-  # not stay "changeme!".
+  #
+  # Secrets belong in the environment, not in this file - a value may reference
+  # a variable as ${NAME}, which is the recommended form for a deployment:
+  #
+  #   apiKey: ${DEMO_APP_API_KEY}
+  #
+  # An undefined variable stops the service instead of producing an empty
+  # secret. A bare $NAME is not expanded, so a literal value like pa$$w0rd stays
+  # what it is. With env: prod this key must not stay "changeme!".
   apiKey: changeme!
+
+  # Secret and ID for JWT authentication; both together, or neither.
+  # The secret belongs in the environment as well.
+  # jwtSecret: ${DEMO_APP_JWT_SECRET}
+  # jwtID: demo_app
 
   # TLS private key file
   keyFile: /opt/demo_app/etc/key.pem

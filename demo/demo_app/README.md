@@ -83,6 +83,40 @@ it into `pa`. A referenced variable that is not set is an error naming it, not
 an empty string, because an empty secret is the kind of mistake that only shows
 up in production.
 
+### Secrets
+
+`apiKey` and `jwtSecret` are secrets, and the recommended place for them is the
+environment, not this file:
+
+```yaml
+webserver:
+  apiKey: ${DEMO_APP_API_KEY}
+  jwtSecret: ${DEMO_APP_JWT_SECRET}
+```
+
+```ini
+# /etc/systemd/system/demo_app.service
+[Service]
+Environment=DEMO_APP_API_KEY=...
+# or, to keep it out of the unit file as well:
+EnvironmentFile=/opt/demo_app/etc/secrets.env
+```
+
+That is the only arrangement in which the secret is not in the configuration
+file at all. Whatever the file does hold deserves the matching permissions
+(`chmod 600`, owned by the service user) and has no business in a repository.
+
+**Why not `crypt.EncryptedString`?** The library offers a string type that
+marshals as ciphertext, and [`sqlite4router`](https://github.com/itdesign-at)
+uses it for exactly these fields. It is deliberately not used here: its AES key
+is compiled into the binary and published in this repository, so anyone who can
+read the configuration file can also decrypt it with three lines of code — see
+[`crypt/README.md`](../../crypt/README.md), section *Security model*. It is real
+protection against *accidental* disclosure (a screenshot, a backup, a struct
+dumped into a log) and none at all against someone with file access. A template
+should not suggest otherwise; if that trade-off is acceptable for a particular
+service, the type is there.
+
 ### What is validated at startup
 
 Beyond the environment, the API key, the log level and the port range:
