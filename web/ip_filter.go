@@ -12,6 +12,26 @@ var (
 	ErrForbidden = errors.New("forbidden")
 )
 
+// IPFilterOption configures WithIPFilter.
+type IPFilterOption func(*ipFilterConfig)
+
+type ipFilterConfig struct {
+	logger *slog.Logger
+}
+
+// WithIPFilterLogger reports unusable list entries to logger instead of
+// slog.Default().
+//
+// It exists because the lists are parsed while the middleware is built, before
+// there is a request whose context could carry a logger. The rejections at
+// request time need no option: they go to the logger WithLogging put into the
+// context.
+func WithIPFilterLogger(logger *slog.Logger) IPFilterOption {
+	return func(c *ipFilterConfig) {
+		c.logger = logger
+	}
+}
+
 // ipList is a parsed allow or block list. Parsing happens once, when the
 // middleware is built, not on every request.
 type ipList struct {
@@ -25,7 +45,7 @@ type ipList struct {
 // parseIPList turns the configured strings into addresses and networks.
 // An entry that is neither is reported and skipped: a typo must not silently
 // turn into a rule that matches nothing.
-func parseIPList(name string, entries []string) ipList {
+func parseIPList(log *slog.Logger, name string, entries []string) ipList {
 	list := ipList{configured: len(entries) > 0}
 
 	for _, entry := range entries {
@@ -36,7 +56,7 @@ func parseIPList(name string, entries []string) ipList {
 				list.nets = append(list.nets, ipNet)
 				continue
 			}
-			slog.Error("Invalid CIDR in IP filter, entry ignored", "list", name, "entry", entry)
+			log.Error("Invalid CIDR in IP filter, entry ignored", "list", name, "entry", entry)
 			continue
 		}
 
@@ -44,11 +64,11 @@ func parseIPList(name string, entries []string) ipList {
 			list.addrs = append(list.addrs, ip)
 			continue
 		}
-		slog.Error("Invalid IP address in IP filter, entry ignored", "list", name, "entry", entry)
+		log.Error("Invalid IP address in IP filter, entry ignored", "list", name, "entry", entry)
 	}
 
 	if list.configured && len(list.addrs) == 0 && len(list.nets) == 0 {
-		slog.Error("IP filter list has no usable entry left", "list", name, "entries", entries)
+		log.Error("IP filter list has no usable entry left", "list", name, "entries", entries)
 	}
 
 	return list
@@ -91,36 +111,47 @@ func (l ipList) contains(ip net.IP) bool {
 //
 // The filter looks at r.RemoteAddr only. Behind a reverse proxy that is the
 // proxy's address, which makes the filter a no-op; see the README.
-func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string) http.Handler {
+//
+// Rejections are logged to the logger WithLogging put into the request context;
+// the entries written while the lists are parsed go to slog.Default() unless
+// WithIPFilterLogger names one.
+func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFilterOption) http.Handler {
 	// If both allowedIPs and blockedIPs are empty, no IP filtering is necessary, return the handler as is
 	if len(allowedIPs) == 0 && len(blockedIPs) == 0 {
 		return h
 	}
 
-	allowed := parseIPList("allowed", allowedIPs)
-	blocked := parseIPList("blocked", blockedIPs)
+	cfg := ipFilterConfig{logger: slog.Default()}
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
+	allowed := parseIPList(cfg.logger, "allowed", allowedIPs)
+	blocked := parseIPList(cfg.logger, "blocked", blockedIPs)
 
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
+			log := LoggerFrom(r.Context())
+
 			remoteAddr, _, err := net.SplitHostPort(r.RemoteAddr)
 			if err != nil {
-				slog.Warn("Invalid remote address, request rejected", "remoteAddress", r.RemoteAddr, "error", err)
+				log.Warn("Invalid remote address, request rejected", "remoteAddress", r.RemoteAddr, "error", err)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))
 				return
 			}
 
 			ip := net.ParseIP(remoteAddr)
 			if ip == nil {
-				slog.Warn("Unparsable remote address, request rejected", "remoteAddress", remoteAddr)
+				log.Warn("Unparsable remote address, request rejected", "remoteAddress", remoteAddr)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))
 				return
 			}
 
-			slog.Debug("Checking IP address against IP Filter", "remoteAddress", remoteAddr, "method", r.Method, "path", r.URL.Path)
+			log.Debug("Checking IP address against IP Filter", "remoteAddress", remoteAddr, "method", r.Method, "path", r.URL.Path)
 
 			if blocked.contains(ip) {
-				slog.Warn("IP blocked", "remoteAddress", remoteAddr)
+				log.Warn("IP blocked", "remoteAddress", remoteAddr)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))
 				return
 			}
@@ -129,7 +160,7 @@ func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string) http.Handler 
 			// everything; one that was never configured allows everything.
 			if !allowed.empty() && !allowed.contains(ip) ||
 				allowed.empty() && allowed.configured {
-				slog.Warn("IP not allowed", "remoteAddress", remoteAddr)
+				log.Warn("IP not allowed", "remoteAddress", remoteAddr)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))
 				return
 			}

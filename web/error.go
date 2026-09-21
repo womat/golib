@@ -2,7 +2,6 @@ package web
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 )
 
@@ -33,9 +32,12 @@ func NewApiError(err error) ApiError {
 //
 // The log level follows the status: error from 500 on, warn below. Only the
 // path is logged, not the query string, which regularly carries tokens.
+//
+// The entry goes to the logger WithLogging put into the request context, and to
+// slog.Default() when there is none - see LoggerFrom.
 func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error) {
 
-	log := slog.With(
+	log := LoggerFrom(r.Context()).With(
 		"method", r.Method,
 		"path", r.URL.Path,
 		"status", status,

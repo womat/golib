@@ -16,7 +16,8 @@ import (
 type LogOption func(*logConfig)
 
 type logConfig struct {
-	bodyLimit int // 0 disables body logging
+	bodyLimit int         // 0 disables body logging
+	level     *slog.Level // nil follows the status code
 }
 
 // WithBodyLogging adds the request and response body to the log entry, cut off
@@ -29,6 +30,35 @@ type logConfig struct {
 func WithBodyLogging(maxBytes int) LogOption {
 	return func(c *logConfig) {
 		c.bodyLimit = maxBytes
+	}
+}
+
+// WithLogLevel writes every entry at the given level instead of letting the
+// response status decide.
+//
+// Use it to put the access log back on a single level - slog.LevelDebug, for
+// instance, which is what this middleware did before it started following the
+// status.
+func WithLogLevel(level slog.Level) LogOption {
+	return func(c *logConfig) {
+		c.level = &level
+	}
+}
+
+// levelFor reports the level one entry is written at: the configured one, or
+// else the one the status code calls for.
+func (c logConfig) levelFor(status int) slog.Level {
+	if c.level != nil {
+		return *c.level
+	}
+
+	switch {
+	case status >= http.StatusInternalServerError:
+		return slog.LevelError
+	case status >= http.StatusBadRequest:
+		return slog.LevelWarn
+	default:
+		return slog.LevelInfo
 	}
 }
 
@@ -97,16 +127,35 @@ func (lr *logResponse) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 //   - It logs the request method and path.
 //   - It logs the response status, size and duration.
 //   - Bodies are logged only with WithBodyLogging, and only up to its limit.
+//
+// The level follows the response status - error from 500, warn from 400, info
+// below - so the access log is visible at the level a service normally runs at.
+// WithLogLevel pins it to one level instead.
+//
+// The logger is put into the request context, which is where WriteError and
+// WithIPFilter look for it. Wrap with this middleware outermost and those
+// entries go to the same logger; see the README for the ordering.
+//
+// A nil logger means slog.Default(), so the middleware never panics on a
+// request; passing one explicitly is the point of the parameter.
 func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler {
 	var cfg logConfig
 	for _, opt := range opts {
 		opt(&cfg)
 	}
 
+	if logger == nil {
+		logger = slog.Default()
+	}
+
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
 			start := time.Now()
+
+			// Hand the logger down the chain, so that the handlers and the
+			// middleware below this one report to the same place.
+			r = r.WithContext(ContextWithLogger(r.Context(), logger))
 
 			// Read and restore the request body before the handler consumes it,
 			// but never more than the limit.
@@ -145,7 +194,7 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 				))
 			}
 
-			logger.Debug("request", attrs...)
+			logger.Log(r.Context(), cfg.levelFor(lr.status), "request", attrs...)
 		},
 	)
 }

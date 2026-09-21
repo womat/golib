@@ -154,3 +154,80 @@ func TestWithLoggingRecordsStatusWithoutExplicitWriteHeader(t *testing.T) {
 		t.Errorf("the implicit 200 is missing from the log:\n%s", buf)
 	}
 }
+
+// TestWithLoggingLevelFollowsStatus is the fix for an access log that was
+// written at debug level and therefore invisible in production.
+func TestWithLoggingLevelFollowsStatus(t *testing.T) {
+	for _, tc := range []struct {
+		status int
+		want   string
+	}{
+		{http.StatusOK, "level=INFO"},
+		{http.StatusNotFound, "level=WARN"},
+		{http.StatusInternalServerError, "level=ERROR"},
+	} {
+		logger, buf := testLogger()
+
+		WithLogging(echoHandler(tc.status, "application/json"), logger).
+			ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+		if !strings.Contains(buf.String(), tc.want) {
+			t.Errorf("status %d: want %s, got:\n%s", tc.status, tc.want, buf)
+		}
+	}
+}
+
+// TestWithLoggingAtInfoLevel guards the regression directly: a logger that
+// only passes info and above must still see the access log.
+func TestWithLoggingAtInfoLevel(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+
+	WithLogging(echoHandler(http.StatusOK, "application/json"), logger).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/health", nil))
+
+	if !strings.Contains(buf.String(), "/health") {
+		t.Errorf("the access log is invisible at info level:\n%s", buf.String())
+	}
+}
+
+func TestWithLogLevelPinsTheLevel(t *testing.T) {
+	logger, buf := testLogger()
+
+	WithLogging(echoHandler(http.StatusInternalServerError, "application/json"), logger, WithLogLevel(slog.LevelDebug)).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if !strings.Contains(buf.String(), "level=DEBUG") {
+		t.Errorf("WithLogLevel did not pin the level:\n%s", buf)
+	}
+}
+
+// TestWithLoggingNilLoggerDoesNotPanic covers the case that used to panic on
+// the first request rather than when the middleware was built.
+func TestWithLoggingNilLoggerDoesNotPanic(t *testing.T) {
+	buf := captureLog(t)
+
+	WithLogging(echoHandler(http.StatusOK, "application/json"), nil).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/nil-logger", nil))
+
+	if !strings.Contains(buf.String(), "/nil-logger") {
+		t.Errorf("a nil logger should fall back to the default one:\n%s", buf)
+	}
+}
+
+// TestWithLoggingSeedsTheContext is what makes WriteError and WithIPFilter
+// report to the same logger.
+func TestWithLoggingSeedsTheContext(t *testing.T) {
+	logger, buf := testLogger()
+
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		LoggerFrom(r.Context()).Info("from the handler")
+	})
+
+	WithLogging(inner, logger).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if !strings.Contains(buf.String(), "from the handler") {
+		t.Errorf("the handler did not find the logger in the context:\n%s", buf)
+	}
+}

@@ -9,9 +9,17 @@
 // handle JSON bodies, WriteError produces a uniform JSON error body and logs
 // the details that are not sent to the client.
 //
+// No part of this package reaches for slog.Default() on its own: WithLogging
+// takes the logger and puts it into the request context, where WriteError and
+// WithIPFilter pick it up through LoggerFrom. Only when nothing seeded the
+// context does that fall back to slog.Default(). The access log follows the
+// response status - error from 500, warn from 400, info below - so it is
+// visible at the level a service runs at.
+//
 // # Example usage
 //
 //	func main() {
+//	    logger := slog.Default()
 //	    cfg := web.Config{ApiKey: os.Getenv("API_KEY"), AppName: "demo"}
 //
 //	    mux := http.NewServeMux()
@@ -21,8 +29,9 @@
 //	    // Wrap in this order; the last wrapper is the outermost one, so
 //	    // logging sees every request, rejected ones included.
 //	    handler := web.WithCORS(mux, web.WithAllowedOrigins("https://example.com"))
-//	    handler = web.WithIPFilter(handler, []string{"192.168.0.0/16"}, nil)
-//	    handler = web.WithLogging(handler, slog.Default())
+//	    handler = web.WithIPFilter(handler, []string{"192.168.0.0/16"}, nil,
+//	        web.WithIPFilterLogger(logger))
+//	    handler = web.WithLogging(handler, logger)
 //
 //	    log.Fatal(http.ListenAndServe(":8443", handler))
 //	}

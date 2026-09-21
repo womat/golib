@@ -20,9 +20,13 @@ both sections before putting this on a public interface.
 | `func WithAllowedMethods(methods ...string) CORSOption` | replace the method list |
 | `func WithAllowedHeaders(headers ...string) CORSOption` | replace the request-header list |
 | `func HandlePreflight() http.Handler` | answers `OPTIONS` with 204; register it as its own route |
-| `func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string) http.Handler` | IP and CIDR allow/block lists, parsed once; 403 on rejection |
-| `func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler` | one debug entry per request: method, path, status, size, duration |
+| `func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFilterOption) http.Handler` | IP and CIDR allow/block lists, parsed once; 403 on rejection |
+| `func WithIPFilterLogger(logger *slog.Logger) IPFilterOption` | where to report unusable list entries, which are found while the middleware is built |
+| `func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler` | one entry per request: method, path, status, size, duration; level follows the status |
 | `func WithBodyLogging(maxBytes int) LogOption` | additionally log request and response body, truncated, textual types only |
+| `func WithLogLevel(level slog.Level) LogOption` | write every entry at one level instead of following the status |
+| `func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context` | put a logger where `WriteError` and `WithIPFilter` find it |
+| `func LoggerFrom(ctx context.Context) *slog.Logger` | that logger, or `slog.Default()` when there is none |
 | `func Encode[T any](w http.ResponseWriter, status int, v T)` | JSON response; a marshal failure still yields valid JSON and a 500 |
 | `func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error)` | JSON request body, limited to 1 MiB, trailing data refused |
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
@@ -110,8 +114,12 @@ at the proxy in that setup.
 
 ## Logging
 
-`WithLogging` writes one `Debug` entry per request: method, path, status,
-response size, duration. **Bodies are not logged** unless `WithBodyLogging` asks
+`WithLogging` writes one entry per request: method, path, status, response
+size, duration. **The level follows the response status** — `Error` from 500,
+`Warn` from 400, `Info` below — so the access log is visible at the level a
+service actually runs at. It used to be `Debug` throughout, which meant no
+access log at all in production; `WithLogLevel(slog.LevelDebug)` restores that
+if it was what you wanted. **Bodies are not logged** unless `WithBodyLogging` asks
 for it, and then only up to its byte limit and only for `application/json`,
 `application/xml` and `text/*` — a body carries passwords and tokens, and a log
 file is the wrong place for them.
@@ -120,6 +128,26 @@ The wrapper around `http.ResponseWriter` passes `Unwrap`, `Flush` and `Hijack`
 through, so server-sent events and WebSocket upgrades keep working with the
 middleware in the chain.
 
+A `nil` logger falls back to `slog.Default()` instead of panicking on the first
+request — but passing one explicitly is the point of the parameter.
+
+### One logger for the whole chain
+
+`WithLogging` puts its logger into the request context, and `WriteError` and
+`WithIPFilter` read it back with `LoggerFrom`. Wrap with `WithLogging` outermost
+and every entry this package writes goes to the application's logger; without
+it they fall back to `slog.Default()`, which is what earlier versions always
+did.
+
+```go
+handler := web.WithIPFilter(mux, allowed, blocked, web.WithIPFilterLogger(logger))
+handler = web.WithLogging(handler, logger)   // outermost: seeds the context
+```
+
+The IP filter needs the extra option because it parses its lists while the
+middleware is built, before there is a request whose context could carry
+anything. Its rejections at request time need no option.
+
 ## Errors
 
 `WriteError` sends `{"error":"…"}` and logs the details. From status 500 on, the
@@ -127,7 +155,9 @@ client gets `ErrInternal` and nothing else — a wrapped database or filesystem
 error stays in the log, where the optional `reason` arguments land as well.
 Below 500 the error text is passed on, since it describes the caller's own
 mistake. The level follows the status: `Error` from 500, `Warn` below. Only the
-path is logged, never the query string, which regularly carries tokens.
+path is logged, never the query string, which regularly carries tokens. The
+entry goes to the logger in the request context, see
+[One logger for the whole chain](#one-logger-for-the-whole-chain).
 
 ## Testing
 
@@ -156,3 +186,17 @@ Known and deliberately left alone:
 - **`Decode` does not reject unknown fields.** Extra JSON keys are ignored
   rather than refused.
 - **`X-Forwarded-For` is ignored**, see above.
+- **No `Enabled` check before the work.** `WithLogging` builds its attributes
+  and, with `WithBodyLogging`, buffers the bodies even when the handler would
+  discard the entry. Since the entry is now written at `Info` and above, that
+  work is almost always used; body logging is opt-in and meant for debugging.
+- **`logResponse` does not implement `io.ReaderFrom`.** With this middleware in
+  the chain, `http.ServeFile` and `io.Copy` lose the `sendfile` path.
+- **The hijack error is not a sentinel.** `logResponse.Hijack` returns a plain
+  `errors.New` when the underlying writer cannot be hijacked.
+- **`readBodyPrefix` drops what it read when reading fails**, leaving the
+  handler with a partially consumed body. Only on a read error, and silently.
+- **`WithCORS` sets `Allow-Methods`, `Allow-Headers` and `Max-Age` even when the
+  origin is not on the list** and `Allow-Origin` is deliberately withheld.
+- **The `Bearer` scheme is matched case-sensitively** and a single space is
+  required, where RFC 7235 allows any case and more whitespace.
