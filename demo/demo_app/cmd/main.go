@@ -76,11 +76,7 @@ func main() {
 func run(configFile string, debug bool) int {
 
 	var logger *xlog.LoggerWrapper
-	defer func() {
-		if logger != nil {
-			logger.Close()
-		}
-	}()
+	defer func() { closeLogger(logger) }()
 
 	fmt.Printf("Starting %s %s\n", app.MODULE, app.VERSION)
 
@@ -93,9 +89,7 @@ func run(configFile string, debug bool) int {
 		}
 
 		// Close previous logger if exists
-		if logger != nil {
-			logger.Close()
-		}
+		closeLogger(logger)
 
 		// Initialize logger
 		if logger, err = xlog.Init(config.LogDestination, config.LogLevel); err != nil {
@@ -122,6 +116,22 @@ func run(configFile string, debug bool) int {
 			slog.Info("Shutdown requested")
 			return 0
 		}
+	}
+}
+
+// closeLogger releases the log file and reports a failure on stderr.
+//
+// Stderr, not slog: this runs while the logger is being torn down or replaced,
+// so the log itself is exactly the channel that cannot be trusted here. A
+// failing Close means buffered lines did not make it to disk, which is worth
+// knowing.
+func closeLogger(logger *xlog.LoggerWrapper) {
+	if logger == nil {
+		return
+	}
+
+	if err := logger.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to close the log file: %s\n", err)
 	}
 }
 
