@@ -31,8 +31,8 @@ jobs:
     name: gofmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # Covers the demo modules too - gofmt does not care about module
@@ -56,8 +56,8 @@ jobs:
         # catches what a newer toolchain starts complaining about.
         go: ["1.25.0", "stable"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
       - name: go vet
@@ -80,8 +80,8 @@ jobs:
           - { name: "linux amd64", goos: linux, goarch: amd64 }
           - { name: "linux 386", goos: linux, goarch: "386" }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       # Only Linux targets: gpio/rpi depends on the Linux GPIO character device,
@@ -104,8 +104,8 @@ jobs:
       run:
         working-directory: demo/${{ matrix.demo }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: demo/${{ matrix.demo }}/go.mod
       - name: go vet
@@ -122,8 +122,8 @@ jobs:
       run:
         working-directory: demo/demo_app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: demo/demo_app/go.mod
       # app/certs/ is deliberately not committed and webservices.go embeds it,
@@ -162,8 +162,8 @@ jobs:
       run:
         working-directory: demo/demo_app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: demo/demo_app/go.mod
       - name: generate dev certificate
