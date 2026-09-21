@@ -5,7 +5,7 @@ package app
 import (
 	"net/http"
 
-	_ "github.com/womat/golib/demo_app/docs"
+	_ "github.com/womat/golib/demo/demo_app/docs"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 )
