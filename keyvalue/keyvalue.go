@@ -147,6 +147,11 @@ func (r Record) Float64(key string) float64 {
 // A value outside the range of int counts as not convertible. On a 32-bit
 // platform - which includes the GOARCH=arm builds for the Raspberry Pi - that
 // range is considerably smaller than the one of Int64.
+//
+// A string is parsed as an integer, not as a number: "3.7" is not convertible
+// and yields 0, while the float64 3.7 is truncated to 3. The same value can
+// therefore read differently depending on whether it arrived as text or as a
+// number - relevant for YAML and JSON, where quoting decides.
 func (r Record) Int(key string) int {
 	switch i := r[key].(type) {
 	case float64:
@@ -171,6 +176,9 @@ func (r Record) Int(key string) int {
 // Converts from string, int, float64, and bool if necessary.
 // Returns 0 if not found or not convertible, which includes a float outside
 // the range of int64, an infinity, and NaN.
+//
+// As with Int, a string is parsed as an integer: "3.7" yields 0, the float64
+// 3.7 yields 3.
 func (r Record) Int64(key string) int64 {
 	switch i := r[key].(type) {
 	case float64:
