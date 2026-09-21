@@ -45,8 +45,7 @@ func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 
 	dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBody))
 	if err := dec.Decode(&v); err != nil {
-		var maxErr *http.MaxBytesError
-		if errors.As(err, &maxErr) {
+		if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 			return v, fmt.Errorf("decode json: body larger than %d bytes", maxRequestBody)
 		}
 		return v, fmt.Errorf("decode json: %w", err)

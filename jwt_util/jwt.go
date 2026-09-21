@@ -70,15 +70,13 @@ type Claims struct {
 func GenerateToken(user, issuer, subject, id, secret string, lifetime time.Duration) (string, error) {
 	now := time.Now()
 	claims := &Claims{
-		User: user,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    issuer,
-			Subject:   subject,
-			ExpiresAt: jwt.NewNumericDate(now.Add(lifetime)),
-			NotBefore: jwt.NewNumericDate(now),
-			IssuedAt:  jwt.NewNumericDate(now),
-			ID:        id,
-		},
+		User:      user,
+		Issuer:    issuer,
+		Subject:   subject,
+		ExpiresAt: jwt.NewNumericDate(now.Add(lifetime)),
+		NotBefore: jwt.NewNumericDate(now),
+		IssuedAt:  jwt.NewNumericDate(now),
+		ID:        id,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -95,7 +93,7 @@ func GenerateToken(user, issuer, subject, id, secret string, lifetime time.Durat
 //	secret: the secret used to sign the token
 func ValidateToken(tokenString string, issuer, subject, id, secret string) (*Claims, error) {
 	claims := &Claims{}
-	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}

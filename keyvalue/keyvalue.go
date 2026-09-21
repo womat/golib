@@ -57,6 +57,7 @@
 package keyvalue
 
 import (
+	"maps"
 	"math"
 	"sort"
 	"strconv"
@@ -259,9 +260,7 @@ func (r Record) String(key string) string {
 // with the original and is not safe to modify from both sides.
 func (r Record) Copy() Record {
 	record := make(Record, len(r))
-	for k, v := range r {
-		record[k] = v
-	}
+	maps.Copy(record, r)
 	return record
 }
 
