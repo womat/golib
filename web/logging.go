@@ -1,64 +1,181 @@
 package web
 
 import (
+	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
+	"strings"
+	"time"
 )
 
-// logResponse wraps http.ResponseWriter to capture status code and response body for logging.
-//   - Status is the HTTP status code.
-//   - Body is the response body.
-//   - ResponseWriter is the original http.ResponseWriter.
+// LogOption configures WithLogging.
+type LogOption func(*logConfig)
+
+type logConfig struct {
+	bodyLimit int // 0 disables body logging
+}
+
+// WithBodyLogging adds the request and response body to the log entry, cut off
+// at maxBytes.
+//
+// It is off by default and should stay off outside of debugging: bodies carry
+// passwords, tokens and personal data, all of which end up in the log in clear
+// text. Only textual payloads are logged (application/json, text/*); anything
+// else is reported by size only.
+func WithBodyLogging(maxBytes int) LogOption {
+	return func(c *logConfig) {
+		c.bodyLimit = maxBytes
+	}
+}
+
+// logResponse wraps http.ResponseWriter to capture the status code, the
+// response size and, if asked for, the beginning of the body.
+//
+// Unwrap, Flush and Hijack are passed through so that streaming responses and
+// WebSocket upgrades keep working when this middleware is in the chain.
 type logResponse struct {
 	http.ResponseWriter
-	status int
-	body   bytes.Buffer
+	status      int
+	size        int
+	body        bytes.Buffer
+	bodyLimit   int
+	wroteHeader bool
 }
 
 // WriteHeader captures the status code.
 func (lr *logResponse) WriteHeader(status int) {
-	lr.status = status
+	if !lr.wroteHeader {
+		lr.status = status
+		lr.wroteHeader = true
+	}
 	lr.ResponseWriter.WriteHeader(status)
 }
 
-// Write captures the response body.
+// Write captures size and, up to the limit, the response body.
 func (lr *logResponse) Write(b []byte) (int, error) {
-	lr.body.Write(b)
-	return lr.ResponseWriter.Write(b)
+	if !lr.wroteHeader {
+		// An implicit 200, as net/http would send it.
+		lr.status = http.StatusOK
+		lr.wroteHeader = true
+	}
+
+	if room := lr.bodyLimit - lr.body.Len(); room > 0 {
+		lr.body.Write(b[:min(room, len(b))])
+	}
+
+	n, err := lr.ResponseWriter.Write(b)
+	lr.size += n
+	return n, err
 }
 
-// WithLogging is a middleware that logs the request and response.
-//   - It logs the request method, URL, and body.
-//   - It logs the response status and body.
-func WithLogging(h http.Handler, logger *slog.Logger) http.Handler {
+// Unwrap gives http.ResponseController access to the underlying writer.
+func (lr *logResponse) Unwrap() http.ResponseWriter {
+	return lr.ResponseWriter
+}
+
+// Flush passes through to the underlying writer, if it can flush.
+func (lr *logResponse) Flush() {
+	if f, ok := lr.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// Hijack passes through to the underlying writer, if it can be hijacked.
+func (lr *logResponse) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if h, ok := lr.ResponseWriter.(http.Hijacker); ok {
+		return h.Hijack()
+	}
+	return nil, nil, errors.New("web: the underlying ResponseWriter cannot be hijacked")
+}
+
+// WithLogging is a middleware that logs one entry per request.
+//
+//   - It logs the request method and path.
+//   - It logs the response status, size and duration.
+//   - Bodies are logged only with WithBodyLogging, and only up to its limit.
+func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler {
+	var cfg logConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
 
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
-			// Read and restore request body before handler consumes it
-			var reqBody bytes.Buffer
-			if r.Body != nil {
-				_, _ = io.Copy(&reqBody, r.Body)
-				r.Body = io.NopCloser(bytes.NewBuffer(reqBody.Bytes()))
+			start := time.Now()
+
+			// Read and restore the request body before the handler consumes it,
+			// but never more than the limit.
+			var reqBody []byte
+			if cfg.bodyLimit > 0 && r.Body != nil && isTextual(r.Header.Get("Content-Type")) {
+				reqBody = readBodyPrefix(r, cfg.bodyLimit)
 			}
 
-			lr := &logResponse{ResponseWriter: w, status: http.StatusOK}
+			// Capture the response body unconditionally; whether it may be
+			// logged is decided afterwards, when the handler has set its
+			// Content-Type.
+			lr := &logResponse{ResponseWriter: w, status: http.StatusOK, bodyLimit: cfg.bodyLimit}
+
 			h.ServeHTTP(lr, r)
 
-			// Log the request and response.
-			logger.Debug("request",
+			attrs := []any{
 				slog.Group("request",
 					slog.String("method", r.Method),
-					slog.String("url", r.URL.String()),
-					slog.String("body", reqBody.String()),
+					slog.String("path", r.URL.Path),
 				),
 				slog.Group("response",
 					slog.Int("status", lr.status),
-					slog.String("body", lr.body.String()),
+					slog.Int("size", lr.size),
+					slog.Duration("duration", time.Since(start)),
 				),
-			)
+			}
+
+			if cfg.bodyLimit > 0 {
+				responseBody := lr.body.String()
+				if !isTextual(lr.Header().Get("Content-Type")) {
+					responseBody = ""
+				}
+				attrs = append(attrs, slog.Group("body",
+					slog.String("request", string(reqBody)),
+					slog.String("response", responseBody),
+				))
+			}
+
+			logger.Debug("request", attrs...)
 		},
 	)
+}
+
+// readBodyPrefix returns at most limit bytes of the request body and puts the
+// whole body back, so the handler still sees all of it.
+func readBodyPrefix(r *http.Request, limit int) []byte {
+	body, err := io.ReadAll(io.LimitReader(r.Body, int64(limit)))
+	if err != nil {
+		return nil
+	}
+
+	r.Body = struct {
+		io.Reader
+		io.Closer
+	}{
+		Reader: io.MultiReader(bytes.NewReader(body), r.Body),
+		Closer: r.Body,
+	}
+
+	return body
+}
+
+// isTextual reports whether a body of that content type is safe to put into a
+// log line.
+func isTextual(contentType string) bool {
+	mediaType, _, _ := strings.Cut(contentType, ";")
+	mediaType = strings.TrimSpace(strings.ToLower(mediaType))
+
+	return mediaType == "application/json" ||
+		mediaType == "application/xml" ||
+		strings.HasPrefix(mediaType, "text/")
 }

@@ -19,7 +19,7 @@ Requires Go 1.25 or later.
 | `gpio/rpiemu`        | In-memory GPIO emulator for tests and development without hardware                            |
 | [`manchester/encoder`](manchester/README.md) | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending |
 | [`manchester/decoder`](manchester/README.md) | Manchester decoder with automatic clock discovery and tolerance handling |
-| `web`                | Composable `http.Handler` middleware: auth, CORS, IP filter, logging, JSON helpers            |
+| [`web`](web/README.md) | Composable `http.Handler` middleware: auth, CORS, IP filter, logging, JSON helpers          |
 | `jwt_util`           | Generation and validation of signed JWTs with issuer/subject/ID checks                        |
 | [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString`      |
 | `xlog`               | `log/slog` wrapper with destination and level selection                                       |

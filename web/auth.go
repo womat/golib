@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"net/http"
 	"strings"
@@ -54,8 +55,12 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 }
 
 // checkApiKey validates the X-Api-Key header against the configured key.
+//
+// The comparison is constant time, so a wrong key does not reveal how many of
+// its leading bytes were right. The length of the configured key stays
+// observable; see the README.
 func checkApiKey(r *http.Request, apiKey string) bool {
-	return r.Header.Get("X-Api-Key") == apiKey
+	return subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Api-Key")), []byte(apiKey)) == 1
 }
 
 // checkJwtToken validates the Bearer token from the Authorization header.
