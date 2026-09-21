@@ -47,19 +47,15 @@ jobs:
           fi
 
   library:
-    name: library (go ${{ matrix.go }})
+    name: library
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        # 1.25.0 is what go.mod declares and what README.md promises; stable
-        # catches what a newer toolchain starts complaining about.
-        go: ["1.25.0", "stable"]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
-          go-version: ${{ matrix.go }}
+          # Every module in this repository declares the same Go version, and
+          # go-version-file keeps the workflow from drifting away from it.
+          go-version-file: go.mod
       - name: go vet
         run: go vet ./...
       # -race because the concurrency in gpio/internal/watch and the two

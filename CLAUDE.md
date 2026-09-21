@@ -156,10 +156,17 @@ run `make ensure_dev_certs` (needs `openssl`) before `go build`. This is why the
 that module generates the certificate as its first step.
 
 **CI:** `.github/workflows/ci.yml`, on pushes to `main`/`develop` and on pull requests.
-Six jobs: `format` (gofmt over the whole tree), `library` (vet plus `go test -race -cover`
-on Go 1.25.0 *and* stable), `cross` (the five Linux targets the library can be built for —
-Windows and macOS are impossible because of `gpio/rpi`), `demos` (the four small modules),
-`demo_app` (certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target
-per `build_*` recipe in its Makefile). It runs on Linux precisely because the local checks
+Six jobs: `format` (gofmt over the whole tree), `library` (vet plus `go test -race -cover`),
+`cross` (the five Linux targets the library can be built for — Windows and macOS are
+impossible because of `gpio/rpi`), `demos` (the four small modules), `demo_app`
+(certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target per
+`build_*` recipe in its Makefile). It runs on Linux precisely because the local checks
 cannot be complete on macOS. When adding a package or a demo module, extend the matrices:
 a new demo module is invisible to every existing job.
+
+Every job takes its Go version from the `go.mod` of the module it builds, and **all six
+modules declare the same `go 1.27.0`** — raised from 1.25.0/1.26 on 21.09.2026, deliberately
+supporting one version rather than a range. Keep them in step; a module left behind silently
+gets a different toolchain in CI. Of the consumers only `tadl` and `s0meter` import this
+library (`signit` and `sqlite4router` carry their own `crypt` copies), and `tadl` still
+declares `go 1.25.0` — it needs its own directive raised when it picks up the next tag.

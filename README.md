@@ -11,7 +11,7 @@ well-known dependencies.
 
     go get github.com/womat/golib
 
-Requires Go 1.25 or later.
+Requires Go 1.27 or later.
 
 ## Packages
 
@@ -168,15 +168,16 @@ any other package.
 | Job | Covers |
 |---|---|
 | `format` | `gofmt` over the whole tree, demos included |
-| `library` | `go vet` and `go test -race -cover`, on Go 1.25.0 *and* stable |
+| `library` | `go vet` and `go test -race -cover` |
 | `cross` | the five Linux targets the library can be built for |
 | `demos` | `go vet` and a build of each of the four small demo modules |
 | `demo_app` | certificate, vet, race tests, and the `swagger`-tagged build |
 | `demo_app_cross` | one target per `build_*` recipe in its `Makefile` |
 
-The `library` job pins Go 1.25.0 as its own matrix entry so the minimum version
-promised at the top of this file stays true, rather than being true only for
-whatever toolchain happens to be installed.
+Every job takes its Go version from the `go.mod` of the module it builds, and
+all six modules declare the same one, so the version promised at the top of
+this file is the version that is actually tested. There is no matrix over Go
+versions: this library supports one.
 
 ## Tagging a new version
 

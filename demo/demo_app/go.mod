@@ -1,6 +1,6 @@
 module github.com/womat/golib/demo/demo_app
 
-go 1.26
+go 1.27.0
 
 require (
 	github.com/swaggo/http-swagger v1.3.4
