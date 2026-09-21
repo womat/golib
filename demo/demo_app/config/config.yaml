@@ -25,7 +25,10 @@ webserver:
   # Port the HTTPS server listens on
   listenPort: 8443
 
-  # Global API key for protected endpoints
+  # Global API key for protected endpoints.
+  # Values may reference environment variables as ${NAME}; a bare $NAME is left
+  # alone, so a value like pa$$w0rd stays intact. With env: prod this key must
+  # not stay "changeme!".
   apiKey: changeme!
 
   # TLS private key file
