@@ -1,16 +1,17 @@
-// Package app sets up HTTP routes and middleware for the application.
-// It supports authentication, Swagger documentation (dev only), and monitoring endpoints.
-// Routes:
-// - Public routes without authentication (e.g., version)
-// - Protected routes requiring API key or JWT
-// - Swagger documentation (only in development) at /swagger/
-// - Health, Live, Ready, Monitoring, and S0 data endpoints
+// Package app is the service skeleton this template is about: configuration
+// with defaults and environment expansion, an App that owns the HTTP server,
+// wait group, context and the restart/shutdown channels, signal-driven
+// graceful shutdown and config reload, and the route table below.
 //
-// Middleware applied:
-// - CORS
-// - IP filtering (allowed/blocked IPs)
+// SetupRoutes registers:
+//   - GET /version - public, no authentication
+//   - GET /health - protected, API key or JWT via web.WithAuth
+//   - OPTIONS / - the CORS preflight, as its own route so it never meets the
+//     authentication middleware
+//   - GET /swagger/ - only in builds made with -tags swagger
 //
-// This must be called during app startup before starting the HTTP server.
+// and wraps the mux in web.WithCORS, web.WithIPFilter and web.WithLogging, in
+// that order. It must be called during startup, before the HTTP server starts.
 package app
 
 import (
@@ -43,19 +44,10 @@ func (app *App) SetupRoutes() {
 	// Protected routes
 	mux.Handle("GET /health", web.WithAuth(app.HandleHealth(), webCfg))
 
-	// Apply global middleware: CORS + IP filter
+	// Apply global middleware. The last wrapper is the outermost one, so
+	// logging sees every request, the ones the IP filter rejects included.
 	handler := web.WithCORS(mux)
 	handler = web.WithIPFilter(handler, app.config.Webserver.AllowedIPs, app.config.Webserver.BlockedIPs)
-	handler = WithLogging(handler)
+	handler = web.WithLogging(handler, slog.Default())
 	app.web.Handler = handler
-}
-
-func WithLogging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		slog.Debug("Incoming web request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"client_ip", r.RemoteAddr)
-		next.ServeHTTP(w, r)
-	})
 }
