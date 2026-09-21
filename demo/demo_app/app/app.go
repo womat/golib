@@ -44,14 +44,15 @@ const (
 // App is the main application struct.
 // App is where the application is wired up.
 type App struct {
-	wg         sync.WaitGroup // wait group to track running webserver
-	baseDir    string         // working directory
-	config     *Config        // app configuration
-	web        *http.Server   // HTTP server
-	restart    chan struct{}  // signals application restart
-	shutdown   chan struct{}  // signals application shutdown
-	ctx        context.Context
-	cancelFunc context.CancelFunc
+	wg           sync.WaitGroup // wait group to track running webserver
+	shutdownOnce sync.Once      // guards shutdownProcedure against a second caller
+	baseDir      string         // working directory
+	config       *Config        // app configuration
+	web          *http.Server   // HTTP server
+	restart      chan struct{}  // signals application restart
+	shutdown     chan struct{}  // signals application shutdown
+	ctx          context.Context
+	cancelFunc   context.CancelFunc
 
 	// add your additional handler here
 }
@@ -165,7 +166,15 @@ func (app *App) HandleOSSignals() {
 // shutdownProcedure gracefully stops or restarts the app based on mode.
 //   - ModeStop: graceful shutdown the web server, Cleanup app resources and exit the application.
 //   - ModeRestart: graceful shutdown the web server and Cleanup app resources and restart the application.
+//
+// It runs at most once per App: a SIGTERM arriving while the web server is
+// already reporting a fatal error would otherwise clean up twice and send twice
+// on the shutdown channel, which is closed after the first send.
 func (app *App) shutdownProcedure(mode int) {
+	app.shutdownOnce.Do(func() { app.runShutdown(mode) })
+}
+
+func (app *App) runShutdown(mode int) {
 	slog.Info("Initiating shutdown", "mode", mode)
 
 	// cancel the application context to stop all running goroutines
