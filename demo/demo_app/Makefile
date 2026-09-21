@@ -30,14 +30,13 @@ BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown"
 LDFLAGS := -X 'main.buildDate=$(BUILD_DATE)' \
            -X 'main.buildCommit=$(BUILD_COMMIT)'
 
-.PHONY: all test build vendor copy build_dev build_arm6 build_arm7 build_arm64 build_windows386 build_windows64 build_linux386 build_linux64 build_mac_arm64 deploy clean help ensure_dev_certs
+.PHONY: all test build vendor copy build_dev build_arm6 build_arm7 build_arm64 build_arm64_dev build_windows386 build_windows64 build_linux386 build_linux64 build_mac_arm64 deploy deploy_dev clean help ensure_dev_certs
 
 all: help
 
 clean: ## Remove build related file
 	rm -fr ./bin/arm6
 	rm -fr ./bin/arm7
-	rm -fr ./bin/arm8
 	rm -fr ./bin/arm64
 	rm -fr ./bin/amd64
 	rm -fr ./bin/darwin
@@ -58,15 +57,20 @@ ensure_dev_certs:
 # ==================================================================================================================
 # Raspberry Pi Kompatibilitätstabelle für GOARCH und GOARM
 # ==================================================================================================================
-# Modell                    CPU    GOARCH=arm GOARM=6   GOARCH=arm GOARM=7   GOARCH=arm GOARM=8   GOARCH=arm64
+# GOARM kennt nur die Werte 5, 6 und 7 (siehe "go help environment"). Fuer ein
+# 32-Bit-Userland auf ARMv8 ist GOARM=7 das richtige Ziel; 64 Bit laeuft ueber
+# GOARCH=arm64 ohne GOARM. Ein Target "build_arm8" gab es hier einmal, es war
+# eine Kopie von build_arm7 und ist entfernt.
 #
-# Raspberry Pi 1 (A/B/+)    ARMv6  Läuft gut           Nicht kompatibel     Nicht kompatibel     Nicht kompatibel
-# Raspberry Pi Zero (1.Gen) ARMv6  Läuft gut           Nicht kompatibel     Nicht kompatibel     Nicht kompatibel
-# Raspberry Pi 2            ARMv7  Langsam             Läuft gut            Nicht kompatibel     Nicht kompatibel
-# Raspberry Pi 3            ARMv8  Langsam             Läuft gut            Läuft gut            Läuft mit 64-Bit OS
-# Raspberry Pi 4            ARMv8  Langsam             Läuft gut            Läuft gut            Läuft mit 64-Bit OS
-# Raspberry Pi 5            ARMv8  Nicht kompatibel    Langsam              Läuft gut            Läuft mit 64-Bit OS
-# Raspberry Pi Zero 2 W     ARMv8  Langsam             Läuft gut            Läuft gut            Läuft mit 64-Bit OS
+# Modell                    CPU    GOARCH=arm GOARM=6   GOARCH=arm GOARM=7   GOARCH=arm64
+#
+# Raspberry Pi 1 (A/B/+)    ARMv6  Läuft gut           Nicht kompatibel     Nicht kompatibel
+# Raspberry Pi Zero (1.Gen) ARMv6  Läuft gut           Nicht kompatibel     Nicht kompatibel
+# Raspberry Pi 2            ARMv7  Langsam             Läuft gut            Nicht kompatibel
+# Raspberry Pi 3            ARMv8  Langsam             Läuft gut            Läuft mit 64-Bit OS
+# Raspberry Pi 4            ARMv8  Langsam             Läuft gut            Läuft mit 64-Bit OS
+# Raspberry Pi 5            ARMv8  Nicht kompatibel    Langsam              Läuft mit 64-Bit OS
+# Raspberry Pi Zero 2 W     ARMv8  Langsam             Läuft gut            Läuft mit 64-Bit OS
 # ==================================================================================================================
 
 
@@ -78,13 +82,9 @@ build_arm6: ensure_dev_certs ## build binary for all raspberry models 32bit exce
 	GOOS=linux GOARCH=arm GOARM=6 \
 	go build -ldflags "$(LDFLAGS)" -o ./bin/arm6/${BINARY_NAME} ./cmd/main.go
 
-build_arm7: ensure_dev_certs ## build binary for raspberry models 2/3/4/5/Zero2 32bit
+build_arm7: ensure_dev_certs ## build binary for raspberry models 2/3/4/5/Zero2, 32bit userland
 	GOOS=linux GOARCH=arm GOARM=7 \
 	go build -ldflags "$(LDFLAGS)" -o ./bin/arm7/${BINARY_NAME} ./cmd/main.go
-
-build_arm8: ensure_dev_certs ## build binary for raspberry models 3/4/5/Zero2 32bit
-	GOOS=linux GOARCH=arm GOARM=7 \
-	go build -ldflags "$(LDFLAGS)" -o ./bin/arm8/${BINARY_NAME} ./cmd/main.go
 
 build_arm64: ensure_dev_certs ## build binary for raspberry models 3/4/5/Zero2 64bit
 	GOOS=linux GOARCH=arm64 \
