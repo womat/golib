@@ -25,10 +25,15 @@ both sections before putting this on a public interface.
 | `func WithBodyLogging(maxBytes int) LogOption` | additionally log request and response body, truncated, textual types only |
 | `func Encode[T any](w http.ResponseWriter, status int, v T)` | JSON response; a marshal failure still yields valid JSON and a 500 |
 | `func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error)` | JSON request body, limited to 1 MiB, trailing data refused |
-| `func WriteError(w, r, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
+| `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
 
-Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`.
+| `type ContextKey string` | the type of the context key `WithAuth` stores the user under; the key itself is unexported, see [Not addressed](#not-addressed) |
+
+Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`. Unlike `gpio`
+and `mqtt` they carry no package prefix in their message (`"not authorized"`,
+`"forbidden"`, `"internal server error"`) — the text reaches the client, where a
+prefix would leak the implementation.
 
 ## Ordering
 
@@ -55,10 +60,20 @@ request on — that is why `HandlePreflight` exists as a separate handler.
 
 ## CORS
 
-Without options, `WithCORS` answers every origin with `Access-Control-Allow-Origin: *`
-and advertises `Authorization` and `X-Api-Key` as allowed request headers. That
-is the historical behaviour and it is kept as the default so that upgrading the
-library changes no running service.
+Without options, `WithCORS` sets these headers on every response:
+
+| Header | Default |
+|---|---|
+| `Access-Control-Allow-Origin` | `*` |
+| `Access-Control-Allow-Methods` | `POST, GET, OPTIONS, PUT, PATCH, DELETE` |
+| `Access-Control-Allow-Headers` | `Content-Type, Authorization, X-Api-Key` |
+| `Access-Control-Max-Age` | `86400` (one day; not configurable) |
+
+That is the historical behaviour and it is kept as the default so that upgrading
+the library changes no running service. `WithAllowedOrigins`,
+`WithAllowedMethods` and `WithAllowedHeaders` each *replace* the corresponding
+list — a custom header list must repeat `Content-Type` and the auth headers if
+it still needs them.
 
 It is workable for an API that is guarded by an API key and an IP filter, and
 wrong for one that relies on browser credentials: with `*`, any page on the
@@ -133,8 +148,9 @@ Known and deliberately left alone:
   attempt against the API key is invisible, while the IP filter does log its
   rejections.
 - **The authenticated user cannot be read.** `WithAuth` puts it into the request
-  context under an unexported key and there is no exported getter, so the
-  context plumbing is unusable from outside the package.
+  context under an unexported key (`contextKeyUser`) and there is no exported
+  getter. The *type* `ContextKey` is exported, which is of no help: without the
+  key value the context plumbing stays unusable from outside the package.
 - **`Config` is not validated.** An empty `Config` silently rejects every
   request instead of reporting that the middleware was never configured.
 - **`Decode` does not reject unknown fields.** Extra JSON keys are ignored

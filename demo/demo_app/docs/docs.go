@@ -125,7 +125,7 @@ const docTemplate = `{
     "securityDefinitions": {
         "ApiKeyAuth": {
             "type": "apiKey",
-            "name": "X-API-Key",
+            "name": "X-Api-Key",
             "in": "header"
         }
     }

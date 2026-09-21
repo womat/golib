@@ -7,7 +7,7 @@
 // - source info, on by default for debug and selectable via WithSource
 // - safe file cleanup via Close(), including under concurrent use
 //
-// Example usage:
+// # Example usage
 //
 //  1. Logging to stdout with debug messages and source info:
 //     logger, err := xlog.Init("stdout", "debug")

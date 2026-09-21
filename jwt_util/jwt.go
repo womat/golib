@@ -1,3 +1,40 @@
+// Package jwt_util generates and validates signed JWTs for the services in
+// this ecosystem. Tokens are signed with HS256 from a shared secret and carry
+// a user name next to the registered claims; validation checks the signature,
+// the expiry, and the issuer, subject and ID the caller expects, so a token
+// minted for one application cannot be replayed against another.
+//
+// web.WithAuth is the usual consumer: it reads Authorization: Bearer and calls
+// ValidateToken with the JwtSecret, JwtID and AppName from its web.Config.
+//
+// Every failure is reported through one of the package's sentinel errors, so a
+// caller can tell an expired token from a forged one with errors.Is.
+//
+// # Example usage
+//
+//	func main() {
+//	    const (
+//	        issuer  = "demo_app" // the application name
+//	        subject = "auth"
+//	        id      = "demo_app-token-1" // rejects tokens minted for someone else
+//	    )
+//	    secret := os.Getenv("JWT_SECRET")
+//
+//	    token, err := jwt_util.GenerateToken("wolfgang", issuer, subject, id, secret, time.Hour)
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//
+//	    claims, err := jwt_util.ValidateToken(token, issuer, subject, id, secret)
+//	    switch {
+//	    case errors.Is(err, jwt_util.ErrExpiredToken):
+//	        log.Println("token expired, ask for a new one")
+//	    case err != nil:
+//	        log.Println("rejected:", err)
+//	    default:
+//	        log.Println("authenticated:", claims.User)
+//	    }
+//	}
 package jwt_util
 
 import (

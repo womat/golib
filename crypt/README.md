@@ -90,7 +90,7 @@ never proof of an empty secret.
 ## Security model
 
 **The AES key is compiled into the binary.** `defaultSymmetricKey`
-(`symcrypt.go:13`) is a constant in this repository — public, and identical in
+(`symcrypt.go:67`) is a constant in this repository — public, and identical in
 every program that links the package.
 
 **`EncryptedString` always uses that default key.** `NewEncryptedString` and
@@ -103,7 +103,7 @@ against anyone who can read that file: they can decrypt it with three lines of
 code from this repository.
 
 **`SetKey` is not a key derivation function.** It pads or truncates the string
-to exactly 32 bytes (`symcrypt.go:52-62`), and it pads with a prefix of the
+to exactly 32 bytes (`SetKey`, `symcrypt.go:106-116`), and it pads with a prefix of the
 default key:
 
 | call | resulting key |

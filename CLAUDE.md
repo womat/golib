@@ -28,7 +28,7 @@ go test ./crypt/... -run TestAES -v     # single package / single test
 Demos: `cd demo/<name>` first, then use its `Makefile`. All demos cross-compile for
 Raspberry Pi and `make deploy` scp's the binary to `$(PI_USER)@$(PI_HOST)` — edit those
 variables before deploying. `demo/demo_app` has the richest Makefile: `make help` lists
-per-architecture targets (`build_arm6/7/8`, `build_arm64`, `build_linux64`,
+per-architecture targets (`build_arm6`, `build_arm7`, `build_arm64`, `build_linux64`,
 `build_mac_arm64`, `build_windows64`), and `build_arm64_dev` additionally builds with
 `-tags swagger`. `ensure_dev_certs` generates a self-signed dev cert into `app/certs/`.
 
@@ -66,17 +66,21 @@ timings) followed by bit decoding with timing tolerance — and runs asynchronou
 arrive on `Bits()`, and `Close()` performs the ordered shutdown. Both packages support
 IEEE 802.3 and Differential Manchester (Thomas) encodings, selected via `With...` options.
 
-**Option pattern.** `encoder`, `decoder`, `rpi`, `rpiemu` and `mqtt` all use variadic
-functional options (`Option func(*T)`, `WithX(...)`). New configurable constructors should
-follow the same shape. Packages that log accept an injected `*slog.Logger` via
-`WithLogger` rather than using the global logger.
+**Option pattern.** `encoder`, `decoder`, `rpi`, `rpiemu`, `mqtt`, `xlog` and `web`'s CORS
+and logging middleware all use variadic functional options (`Option func(*T)`,
+`WithX(...)`). New configurable constructors should follow the same shape. No package
+reaches for `slog.Default()`: `mqtt` and `decoder` take a `*slog.Logger` through
+`WithLogger`, `web.WithLogging` takes it positionally, and `encoder` has no logger at all
+and reports transmission errors through `WithErrorHandler` (unset, they are dropped).
 
 **`web` is middleware, not a framework.** It provides composable `http.Handler` wrappers —
-`WithAuth` (API key via `X-API-Key` or JWT, delegating to `jwt_util`), `WithCORS` /
-`HandlePreflight`, `WithIPFilter` — plus generic `Encode[T]`/`Decode[T]` JSON helpers and
-`WriteError`/`ApiError` for uniform JSON error bodies. Applications assemble a plain
-`http.ServeMux` and wrap it; see `demo/demo_app/app/routes.go` for the canonical ordering
-(CORS → IP filter → logging).
+`WithAuth` (API key via `X-Api-Key` or JWT, delegating to `jwt_util`), `WithCORS` /
+`HandlePreflight`, `WithIPFilter`, `WithLogging` — plus generic `Encode[T]`/`Decode[T]`
+JSON helpers and `WriteError`/`ApiError` for uniform JSON error bodies. Applications
+assemble a plain `http.ServeMux` and wrap it; see `demo/demo_app/app/routes.go` for the
+canonical wrapping order (`WithCORS`, then `WithIPFilter`, then `WithLogging` — the last
+wrapper is the outermost, so logging sees rejected requests too). Note the CORS default is
+`Access-Control-Allow-Origin: *`, kept deliberately so upgrades change no running service.
 
 **`demo/demo_app` is the application template**, not just a sample. It shows the intended
 service skeleton: YAML config with defaults + env expansion (`app/config.go`), an `App`
@@ -91,15 +95,29 @@ and level selection, returning a wrapper whose `Close()` releases the file handl
 `keyvalue.Record` is a `map[string]any` with converting typed accessors. `crypt` provides
 bcrypt hashing, AES-256 symmetric encryption, Ed25519 key-file generation, and
 `EncryptedString`, which marshals as ciphertext so plaintext never lands in YAML/JSON or
-logs — note `crypt` ships a compiled-in default AES key, so production code must call
-`SetKey`. `mqtt` is a thread-safe Paho wrapper with reconnect handling.
+logs. **`crypt` ships a compiled-in, public default AES key, and `EncryptedString` cannot
+be moved off it** — `SetKey` is a method on `SymCrypt`, and it pads a short key with a
+prefix of that same default. Treat `EncryptedString` as protection against accidental
+disclosure only; `crypt/README.md` has the full security model, and the code is
+deliberately frozen (see the *Not addressed* section there). `jwt_util` mints and validates
+HS256 tokens and is what `web.WithAuth` delegates to. `mqtt` is a thread-safe Paho wrapper
+with reconnect handling.
 
 ## Conventions
 
-- Package-level doc comments carry a runnable `Example usage` block; keep them updated when
-  an API changes — they are the primary documentation here.
-- Sentinel errors are exported package vars (`ErrInvalidLevel`, `ErrUnauthorized`, …) and
-  prefixed with the package name in their message.
+- Every package has a package-level doc comment with a runnable `# Example usage` section
+  (a godoc heading, not a plain line), and is covered by a `README.md`. Both are primary
+  documentation: keep them updated when an API changes. The doc comment lives in the
+  package's main file (`<pkg>.go` — `web/web.go` exists for nothing else), never in a
+  separate `doc.go`. Not every package has its own README: `gpio/README.md` covers `rpi`
+  and `rpiemu`, `manchester/README.md` covers `encoder` and `decoder`. Every README ends
+  with a *Not addressed* section listing what the package deliberately does not do; when
+  you decide against fixing something, that is where the decision goes.
+- Sentinel errors are exported package vars (`ErrInvalidLevel`, `ErrUnauthorized`, …),
+  compared with `errors.Is`. `gpio` and `mqtt` prefix the message with the package name;
+  `web`, `jwt_util` and `manchester/encoder` do not, because those texts can reach a
+  client. Don't change an existing message — `signit`, `sqlite4router`, `tadl` and
+  `s0meter` consume this library.
 - Every resource-owning type (`Pin`, `Encoder`, `Decoder`, `LoggerWrapper`, mqtt `Handler`)
   has an explicit `Close()`/`Disconnect()` that callers must defer.
 - Commit messages follow `type() description`, e.g. `fix() default port 8443`,

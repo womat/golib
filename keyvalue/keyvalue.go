@@ -4,6 +4,29 @@
 // was asked for returns the zero value rather than an error.
 // For raw access without conversion, use the Value method.
 //
+// # Example usage
+//
+//	func main() {
+//	    r := keyvalue.NewRecord()
+//	    r.Set("port", 8443)
+//	    r.Set("debug", "yes")
+//	    r.Set("factor", "1.5")
+//
+//	    port := r.Int("port")        // 8443
+//	    debug := r.Bool("debug")     // true
+//	    factor := r.Float64("factor") // 1.5
+//	    missing := r.String("host")  // "" - no error, no panic
+//
+//	    if !r.Exists("host") {
+//	        // tell a missing key from a zero value
+//	    }
+//
+//	    for _, k := range r.GetSortedKeys() {
+//	        fmt.Println(k, r.Value(k))
+//	    }
+//	    _, _, _, _ = port, debug, factor, missing
+//	}
+//
 // # Conversion
 //
 // Only bool, int, int64, float64 and string are understood as source types.
@@ -12,7 +35,7 @@
 // a missing key. The accessors never report an error, so use Exists or Value
 // where the difference matters.
 //
-// Two rules are easy to get wrong:
+// Three rules are easy to get wrong:
 //
 //   - Bool treats any non-zero number as true, NaN excepted. Strings that name
 //     a truth value ("true", "yes", "on" and their negatives) are recognised as
@@ -21,6 +44,9 @@
 //     GOARCH=arm builds for the Raspberry Pi, a value that does not fit reads
 //     as 0 rather than as a truncated number. Use Int64 where the range
 //     matters.
+//   - Float64 also converts from bool, and an int64 beyond 2^53 does not
+//     survive the conversion: it returns the nearest representable value and
+//     therefore disagrees with Int64 on the same key.
 //
 // # Concurrency
 //

@@ -1,6 +1,15 @@
-# 🚀 demo_app — bla bla
+# 🚀 demo_app — the service template
 
-description
+`demo_app` is the reference skeleton for a service built on `golib`. It is not a
+product and it is not operated anywhere: its job is to be copied. Everything a
+small HTTPS service in this ecosystem needs is wired up once, correctly, and
+documented — YAML configuration with defaults and environment expansion, an
+`App` that owns the HTTP server and its goroutines, signal-driven graceful
+shutdown and config reload, build metadata injected via `-ldflags`, and an
+optional Swagger UI that production builds do not contain.
+
+Start a new service by copying this directory and stripping what it does not
+need.
 
 ---
 
@@ -29,7 +38,7 @@ description
 | GET    | `/version` | —       | Application name and version       |
 | GET    | `/health`  | API Key | Runtime metrics (memory, uptime …) |
 
-Authentication via the `X-API-Key` header.
+Authentication via the `X-Api-Key` header.
 
 ### Examples
 
@@ -134,8 +143,8 @@ The IP lists are the reason for the last row: a typo there would otherwise
 become a rule that silently never matches.
 
 
-Default location: `/opt/demo_app/etc/config.yaml`
-Environment variables are expanded inside the file, e.g. `apiKey: ${TADL_API_KEY}`.
+Default location: `/opt/demo_app/etc/config.yaml`. Environment variables are
+expanded inside the file as described [above](#environment-variables).
 
 ```yaml
 # =============================================================================

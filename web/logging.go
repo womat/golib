@@ -24,8 +24,8 @@ type logConfig struct {
 //
 // It is off by default and should stay off outside of debugging: bodies carry
 // passwords, tokens and personal data, all of which end up in the log in clear
-// text. Only textual payloads are logged (application/json, text/*); anything
-// else is reported by size only.
+// text. Only textual payloads are logged (application/json, application/xml
+// and text/*); anything else is reported by size only.
 func WithBodyLogging(maxBytes int) LogOption {
 	return func(c *logConfig) {
 		c.bodyLimit = maxBytes

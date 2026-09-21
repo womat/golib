@@ -1,3 +1,57 @@
+// Package crypt collects the cryptographic helpers the services in this
+// ecosystem share: bcrypt password hashing, AES-256-GCM symmetric encryption,
+// Ed25519 key-file generation, and EncryptedString, a string type that
+// marshals as ciphertext so a secret never lands in a YAML or JSON file in
+// clear text.
+//
+// The symmetric encryption ships with a compiled-in default key that is
+// public - it is in this repository. SymCrypt can be pointed at another key
+// with SetKey, but EncryptedString cannot: SetKey is a method on SymCrypt and
+// EncryptedString always uses the default. Treat EncryptedString as protection
+// against accidental disclosure (a config file in a screenshot, a struct dumped
+// to a log), never against anyone who can read the file. Read the "Security
+// model" section of README.md before relying on any of it, including what
+// SetKey does with a key that is not exactly 32 bytes.
+//
+// # Example usage
+//
+//	func main() {
+//	    // Password hashing.
+//	    hashed, err := crypt.Hash("s3cret", crypt.DefaultCost)
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    ok := crypt.Compare(hashed, "s3cret") // true
+//
+//	    // Symmetric encryption with an explicit key.
+//	    cipherText := crypt.NewSymmetricEncryption().
+//	        SetKey(os.Getenv("AES_KEY")).
+//	        SetPlainText("connection string").
+//	        GetCypherBase64()
+//
+//	    plain, err := crypt.NewSymmetricEncryption().
+//	        SetKey(os.Getenv("AES_KEY")).
+//	        SetCypherBase64(cipherText).
+//	        GetPlainText()
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//
+//	    // A secret in a config struct. Marshals as ciphertext, but only with
+//	    // the compiled-in default key - see the note above.
+//	    type config struct {
+//	        Password crypt.EncryptedString `yaml:"password"`
+//	    }
+//	    cfg := config{Password: crypt.NewEncryptedString("s3cret")}
+//	    _ = cfg.Password.Value() // "s3cret"
+//
+//	    // Ed25519 key pair, written to disk.
+//	    pub, err := crypt.GenerateEd25519KeyFiles("./certs", "id_ed25519")
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    _, _, _ = ok, plain, pub
+//	}
 package crypt
 
 import (
