@@ -4,8 +4,8 @@
 // - stdout, stderr, null (discard) logging
 // - file logging with automatic append/create
 // - log levels: debug, info (default), warning, error
-// - optional source info for debug logs
-// - safe file cleanup via Close()
+// - source info, on by default for debug and selectable via WithSource
+// - safe file cleanup via Close(), including under concurrent use
 //
 // Example usage:
 //
@@ -22,9 +22,15 @@
 //     logger.Warn("This is a warning")
 //     logger.Info("This info will be ignored due to log level")
 //
-//  3. Discarding all logs (useful in tests):
+//  3. Source info at a level other than debug:
+//     logger, err := xlog.Init("stdout", "info", xlog.WithSource(true))
+//
+//  4. Discarding all logs (useful in tests):
 //     logger, _ := xlog.Init("null", "debug")
 //     logger.Debug("This will not appear anywhere")
+//
+// After Close() the logger stays usable: what is written to it is discarded
+// instead of going to a closed file handle.
 package xlog
 
 import (
@@ -32,47 +38,104 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 )
 
-// LoggerWrapper wraps a slog.Logger and optionally keeps a file handle
-// for proper cleanup. Use Close() if you log to a file to release resources.
+// LoggerWrapper wraps a slog.Logger and owns the file handle when logging to a
+// file. Call Close() to release it; for stdout, stderr and null it is a no-op.
 type LoggerWrapper struct {
 	*slog.Logger
-	*os.File // Optional file handle; nil if not logging to file
+	out *output
 }
 
-// Init initializes the slog logger with the given log destinations and log level.
-// dest: stdout, stderr, /path/to/logfile
-// addSource: add go source file name and line number to log output
+// output is the writer handed to the slog handler. It stays valid for the whole
+// life of the logger: Close swaps the destination for io.Discard instead of
+// leaving a closed file behind, so a late log call is defined to do nothing
+// rather than failing invisibly - slog discards handler write errors.
+type output struct {
+	mu   sync.Mutex
+	dest io.Writer
+	file *os.File // nil unless logging to a file
+}
+
+// Write implements io.Writer. The lock also serialises writes against Close.
+func (o *output) Write(p []byte) (int, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.dest.Write(p)
+}
+
+// close releases the file handle, if any, and discards everything written from
+// now on. It is safe to call from several goroutines and does nothing the
+// second time.
+func (o *output) close() error {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	if o.file == nil {
+		return nil
+	}
+
+	file := o.file
+	o.file = nil
+	o.dest = io.Discard
+	return file.Close()
+}
+
+// Option configures the logger created by Init.
+type Option func(*options)
+
+type options struct {
+	source    bool
+	sourceSet bool
+}
+
+// WithSource turns the source file and line on or off explicitly. Without it,
+// source info is added for the debug level only.
+func WithSource(enabled bool) Option {
+	return func(o *options) {
+		o.source = enabled
+		o.sourceSet = true
+	}
+}
 
 // Init initializes a slog.Logger with the given output destination and log level.
 //
 // Parameters:
-//   - dest: "stdout", "stderr", "null", or a file path
-//   - logLevel: "debug", "info", "warning", "error" (default: info)
+//   - dest: "stdout", "stderr", "null", or a file path. The three names are
+//     matched case-insensitively and ignoring surrounding blanks; anything else
+//     is opened as a file, created if missing and appended to otherwise.
+//   - logLevel: "debug", "info", "warning", "error" (default: info), matched
+//     the same way
+//   - opts: optional settings, currently WithSource
 //
 // Returns a LoggerWrapper and an error if the file cannot be opened.
-func Init(dest string, logLevel string) (*LoggerWrapper, error) {
-	var err error
-	var writer io.Writer
-	var logFile *os.File
-	var level slog.Level
-
-	switch strings.ToLower(dest) {
-	case "stdout":
-		writer = os.Stdout
-	case "stderr":
-		writer = os.Stderr
-	case "null":
-		writer = io.Discard
-	default:
-		if logFile, err = os.OpenFile(dest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err != nil {
-			return nil, err
-		}
-		writer = logFile
+func Init(dest string, logLevel string, opts ...Option) (*LoggerWrapper, error) {
+	var cfg options
+	for _, opt := range opts {
+		opt(&cfg)
 	}
 
-	switch strings.ToLower(logLevel) {
+	out := &output{}
+
+	switch strings.ToLower(strings.TrimSpace(dest)) {
+	case "stdout":
+		out.dest = os.Stdout
+	case "stderr":
+		out.dest = os.Stderr
+	case "null":
+		out.dest = io.Discard
+	default:
+		file, err := os.OpenFile(dest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			return nil, err
+		}
+		out.dest = file
+		out.file = file
+	}
+
+	var level slog.Level
+	switch strings.ToLower(strings.TrimSpace(logLevel)) {
 	case "debug":
 		level = slog.LevelDebug
 	case "error":
@@ -83,19 +146,23 @@ func Init(dest string, logLevel string) (*LoggerWrapper, error) {
 		level = slog.LevelInfo
 	}
 
-	logger := slog.New(slog.NewTextHandler(writer, &slog.HandlerOptions{
-		AddSource: level == slog.LevelDebug,
+	addSource := level == slog.LevelDebug
+	if cfg.sourceSet {
+		addSource = cfg.source
+	}
+
+	logger := slog.New(slog.NewTextHandler(out, &slog.HandlerOptions{
+		AddSource: addSource,
 		Level:     level}))
-	return &LoggerWrapper{Logger: logger, File: logFile}, nil
+
+	return &LoggerWrapper{Logger: logger, out: out}, nil
 }
 
-// Close closes the file handle if logging to a file.
-// Safe to call multiple times; does nothing if logging to stdout/stderr/null.
+// Close closes the file handle if logging to a file, and discards everything
+// written afterwards.
+//
+// It is safe to call multiple times and from several goroutines, and it does
+// nothing when logging to stdout, stderr or null.
 func (l *LoggerWrapper) Close() error {
-	if l.File != nil {
-		err := l.File.Close()
-		l.File = nil
-		return err
-	}
-	return nil
+	return l.out.close()
 }
