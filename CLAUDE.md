@@ -69,7 +69,10 @@ That is how receiving code (the Manchester decoder, for instance) is tested with
 hardware; `rpiemu.NewPin` returns `rpiemu.Pin`, which embeds `gpio.Pin`.
 
 Both backends share `gpio/internal/watch`: the channel a consumer ranges over, the edge
-mask, drop counting and the shutdown that closes the channel. It exists because that logic
+mask, drop counting and the shutdown that closes the channel. Losses are also reported per
+event: `gpio.Event.Missed` counts the edges lost right before it (dropped in Go, or in the
+kernel as seen by `gpio/rpi` through the line's sequence number), so a consumer can discard
+an interval that spans a gap — `decoder.Event` mirrors the field. It exists because that logic
 is where the concurrency bugs live, and `gpio/rpi` itself cannot be tested off a Pi —
 keeping the delivery there down to a one-line call means the untestable part is a thin
 adapter over code that is tested under `-race`.
@@ -150,8 +153,10 @@ macOS because `go-gpiocdev` is Linux-only — see the note under Commands. `GOOS
 ./...` covers the whole repository including that package, and is worth running before
 committing changes under `gpio/`.
 
-`gpio/rpi` has no tests: exercising it needs a real GPIO chip. Its example is compiled but
-deliberately carries no `Output:` comment, so `go test` does not try to run it.
+`gpio/rpi` has tests only for its pure helpers (`eventTime`, `seqGap`), which build on Linux
+alone and therefore run in CI only; anything touching a line needs a real GPIO chip. Its
+example is compiled but deliberately carries no `Output:` comment, so `go test` does not try
+to run it.
 
 **`demo/demo_app` does not build from a fresh clone.** `app/webservices.go` embeds
 `certs/dev_cert.pem` and `certs/dev_key.pem`, and `app/certs/` is gitignored on purpose —
