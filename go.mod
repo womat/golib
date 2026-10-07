@@ -6,7 +6,7 @@ require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/mikesmitty/edkey v0.0.0-20170222072505-3356ea4e686a
-	github.com/warthog618/go-gpiocdev v0.9.1
+	github.com/warthog618/go-gpiocdev v0.9.2
 	golang.org/x/crypto v0.57.0
 	golang.org/x/sys v0.48.0
 )
