@@ -84,8 +84,9 @@ goroutine translating `gpio.Event` into `decoder.Event` (see
 `demo/manchester_listener/cmd/main.go`). Keep that boundary: don't import `gpio` from
 `manchester/*`.
 
-The decoder works in two phases — clock discovery (derives bit period from sampled edge
-timings) followed by bit decoding with timing tolerance — and runs asynchronously; bits
+The decoder works in two phases — clock recovery (finds the bit period in the edge timings
+and follows it, `recovery.go`; skipped when a bit clock is configured) followed by bit decoding
+with timing tolerance — and runs asynchronously; bits
 arrive on `Bits()`, and `Close()` performs the ordered shutdown. Both packages support
 IEEE 802.3 and Differential Manchester (Thomas) encodings, selected via `With...` options.
 
