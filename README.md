@@ -204,6 +204,10 @@ all six modules declare the same one, so the version promised at the top of
 this file is the version that is actually tested. There is no matrix over Go
 versions: this library supports one.
 
+The actions are pinned to a commit SHA with the release in a comment, so a moved
+tag cannot change what runs; `.github/dependabot.yml` proposes updates for them
+and for the Go modules of all six modules every week.
+
 ## Tagging a new version
 
 There is one branch, `main`; a version is a tag on it, and tags apply to the

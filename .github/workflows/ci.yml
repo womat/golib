@@ -9,6 +9,10 @@
 # Everything under demo/ is a separate Go module with its own go.mod and a
 # replace directive pointing at the repository root, so a root-level "go build
 # ./..." ignores the demos entirely. They get their own jobs.
+#
+# Actions are pinned to a commit SHA, with the release in a comment: a tag like
+# @v7 can be moved to other code, a SHA cannot. dependabot (.github/dependabot.yml)
+# proposes updates for them.
 
 name: CI
 
@@ -31,8 +35,8 @@ jobs:
     name: gofmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       # Covers the demo modules too - gofmt does not care about module
@@ -50,8 +54,8 @@ jobs:
     name: fix, lint, vulnerabilities
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
 
@@ -74,8 +78,8 @@ jobs:
     name: library
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # Every module in this repository declares the same Go version, and
           # go-version-file keeps the workflow from drifting away from it.
@@ -100,8 +104,8 @@ jobs:
           - { name: "linux amd64", goos: linux, goarch: amd64 }
           - { name: "linux 386", goos: linux, goarch: "386" }
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       # Only Linux targets: gpio/rpi depends on the Linux GPIO character device,
@@ -124,8 +128,8 @@ jobs:
       run:
         working-directory: demo/${{ matrix.demo }}
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: demo/${{ matrix.demo }}/go.mod
       - name: go vet
@@ -142,8 +146,8 @@ jobs:
       run:
         working-directory: demo/demo_app
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: demo/demo_app/go.mod
       # app/certs/ is deliberately not committed and webservices.go embeds it,
@@ -182,8 +186,8 @@ jobs:
       run:
         working-directory: demo/demo_app
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: demo/demo_app/go.mod
       - name: generate dev certificate

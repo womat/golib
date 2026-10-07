@@ -182,7 +182,7 @@ to the copies in `signit` and `sqlite4router` — the finding is recorded in
 `crypt/README.md` under *Not addressed* instead. **Do not widen these exclusions to make a
 new finding go away; fix the finding or record the decision.**
 
-**CI:** `.github/workflows/ci.yml`, on pushes to `main` and on pull requests.
+**CI:** `.github/workflows/ci.yml`, on pushes to `main` and on pull requests. Actions are pinned to a commit SHA with the release in a comment — never a movable tag like `@v7`; dependabot updates the pins.
 Seven jobs: `format` (gofmt over the whole tree), `checks` (`scripts/check.sh --check`, so
 the CI and the local command cannot drift apart), `library` (vet plus
 `go test -race -cover`), `cross` (the five Linux targets the library can be built for —
