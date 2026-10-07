@@ -184,8 +184,8 @@ library's own convention requires that `defer`, and `crypt` is excluded from one
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every push to `main` and `develop` and on
-every pull request. It exists because the checks above cannot be complete on a
+`.github/workflows/ci.yml` runs on every push to `main` and on every pull
+request. It exists because the checks above cannot be complete on a
 macOS machine: on a Linux runner `gpio/rpi` builds natively and is tested like
 any other package.
 
@@ -206,7 +206,8 @@ versions: this library supports one.
 
 ## Tagging a new version
 
-Tags apply to the whole library at once. First fetch all tags and display them:
+There is one branch, `main`; a version is a tag on it, and tags apply to the
+whole library at once. First fetch all tags and display them:
 
     git fetch --tags
     git tag -l

@@ -32,7 +32,7 @@ per-architecture targets (`build_arm6`, `build_arm7`, `build_arm64`, `build_linu
 `build_mac_arm64`, `build_windows64`), and `build_arm64_dev` additionally builds with
 `-tags swagger`. `ensure_dev_certs` generates a self-signed dev cert into `app/certs/`.
 
-Version tagging is done on the whole library at once (`git tag -a vX.Y.Z -m "..."; git push --tags`).
+There is one branch, `main`: work is committed to it, and a version is a tag on it, for the whole library at once (`git tag -a vX.Y.Z -m "..."; git push --tags`). Use a short-lived feature branch for work that must not land on `main` yet.
 
 **This repository always authenticates as `womat`.** On the development machine the default
 SSH key for `github.com` belongs to another account (`itd-mathe`), so a push through
@@ -52,7 +52,7 @@ Host github-priv
 git remote set-url origin git@github-priv:womat/golib.git
 ```
 
-Verify with `ssh -T github-priv` (must greet `womat`) and `git push --dry-run origin develop`.
+Verify with `ssh -T github-priv` (must greet `womat`) and `git push --dry-run origin main`.
 
 ## Architecture
 
@@ -181,7 +181,7 @@ to the copies in `signit` and `sqlite4router` — the finding is recorded in
 `crypt/README.md` under *Not addressed* instead. **Do not widen these exclusions to make a
 new finding go away; fix the finding or record the decision.**
 
-**CI:** `.github/workflows/ci.yml`, on pushes to `main`/`develop` and on pull requests.
+**CI:** `.github/workflows/ci.yml`, on pushes to `main` and on pull requests.
 Seven jobs: `format` (gofmt over the whole tree), `checks` (`scripts/check.sh --check`, so
 the CI and the local command cannot drift apart), `library` (vet plus
 `go test -race -cover`), `cross` (the five Linux targets the library can be built for —
