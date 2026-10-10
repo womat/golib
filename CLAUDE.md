@@ -144,8 +144,7 @@ with reconnect handling.
   `s0meter` consume this library.
 - Every resource-owning type (`Pin`, `Encoder`, `Decoder`, `LoggerWrapper`, mqtt `Handler`)
   has an explicit `Close()`/`Disconnect()` that callers must defer.
-- Commit messages follow `type() description`, e.g. `fix() default port 8443`,
-  `docu() update README.md`.
+- Commit subjects follow Conventional Commits, `type(scope): description` with an optional scope (`fix: default port 8443`, `feat(ui): …`), types `feat`, `fix`, `docu`, `chore`, `refactor`.
 
 ## Known state
 
