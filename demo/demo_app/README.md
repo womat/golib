@@ -262,15 +262,17 @@ sudo chown -R demo_app:demo_app /opt/demo_app
 ```sh
 sudo tee /etc/systemd/system/demo_app.service > /dev/null <<'EOF'
 [Unit]
-Description=demo_app — S0 Pulse Energy Monitor
-After=network.target
+Description=demo_app — golib service template
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 User=demo_app
 Group=demo_app
 Type=simple
-ExecStart=/opt/demo_app/bin/demo_app 
+ExecStart=/opt/demo_app/bin/demo_app
 Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
