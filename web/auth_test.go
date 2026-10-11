@@ -210,6 +210,9 @@ func TestWithAuthUnauthorizedBody(t *testing.T) {
 	if got := rec.Header().Get("Content-Type"); got != "application/json" {
 		t.Errorf("Content-Type = %q, want application/json", got)
 	}
+	if got := rec.Header().Get("WWW-Authenticate"); got != "Bearer" {
+		t.Errorf("WWW-Authenticate = %q, want Bearer", got)
+	}
 	if got, want := rec.Body.String(), `{"error":"not authorized"}`; got != want+"\n" && got != want {
 		t.Errorf("body = %q, want %q", got, want)
 	}

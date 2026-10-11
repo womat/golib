@@ -74,7 +74,9 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 				}
 			}
 
-			// If neither API Key nor JWT is valid, return Unauthorized
+			// If neither API Key nor JWT is valid, return Unauthorized. RFC 6750
+			// wants the scheme named in the challenge, so a client learns what to send.
+			w.Header().Set("WWW-Authenticate", "Bearer")
 			Encode(w, http.StatusUnauthorized, NewApiError(ErrUnauthorized))
 		})
 }

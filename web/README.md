@@ -13,7 +13,7 @@ both sections before putting this on a public interface.
 
 | Function | Comment |
 |---|---|
-| `func WithAuth(h http.Handler, config Config) http.Handler` | API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; 401 otherwise |
+| `func WithAuth(h http.Handler, config Config) http.Handler` | API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
 | `type Config struct{ ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything |
 | `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers; **does not** answer preflights |
 | `func WithAllowedOrigins(origins ...string) CORSOption` | restrict to a list, echo only on a match, set `Vary: Origin` |
