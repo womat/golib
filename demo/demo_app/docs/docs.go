@@ -19,6 +19,9 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
+                        "BearerAuth": []
+                    },
+                    {
                         "ApiKeyAuth": []
                     }
                 ],
@@ -124,8 +127,15 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "ApiKeyAuth": {
+            "description": "Deprecated: send the key as a bearer token instead (BearerAuth). Still accepted, but logged as a warning.",
             "type": "apiKey",
             "name": "X-Api-Key",
+            "in": "header"
+        },
+        "BearerAuth": {
+            "description": "The API key as a bearer token: \"Bearer \u003ckey\u003e\".",
+            "type": "apiKey",
+            "name": "Authorization",
             "in": "header"
         }
     }

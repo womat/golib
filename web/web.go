@@ -2,7 +2,8 @@
 // small HTTP services. It is middleware, not a framework: build a plain
 // http.ServeMux and wrap it.
 //
-// Authentication accepts either an API key in the X-Api-Key header or a JWT in
+// Authentication accepts an API key as a static bearer token in
+// Authorization: Bearer, or in the deprecated X-Api-Key header, or a JWT in
 // Authorization: Bearer, validated through jwt_util. CORS, IP filtering and
 // request logging are independent wrappers that can be combined in any order -
 // see the README for the ordering that is actually useful. Encode and Decode

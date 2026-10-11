@@ -31,9 +31,15 @@ var (
 	buildCommit = "none"
 )
 
+// @securityDefinitions.apikey	BearerAuth
+// @in							header
+// @name						Authorization
+// @description				The API key as a bearer token: "Bearer <key>".
+//
 // @securityDefinitions.apikey	ApiKeyAuth
 // @in							header
 // @name						X-Api-Key
+// @description				Deprecated: send the key as a bearer token instead (BearerAuth). Still accepted, but logged as a warning.
 func main() {
 	// Parse command line flags.
 	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)

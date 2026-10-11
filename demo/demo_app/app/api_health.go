@@ -16,6 +16,7 @@ import (
 //	@Description	Retrieves memory usage, goroutine count, version, hostname, Go runtime version, and OS.
 //	@Tags			info
 //	@Produce		json
+//	@Security		BearerAuth
 //	@Security		ApiKeyAuth
 //	@Success		200	{object}	health.Model	"Health data successfully retrieved"
 //	@Failure		401	{string}	string			"Unauthorized"

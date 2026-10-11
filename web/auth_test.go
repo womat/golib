@@ -1,8 +1,10 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,6 +91,38 @@ func TestWithAuth(t *testing.T) {
 			header:     map[string]string{"Authorization": "Bearer not.a.token"},
 			wantStatus: http.StatusUnauthorized,
 		},
+		{
+			name:        "api key as bearer token",
+			config:      cfg,
+			header:      map[string]string{"Authorization": "Bearer the-api-key"},
+			wantStatus:  http.StatusOK,
+			wantReached: true,
+		},
+		{
+			name:        "bearer scheme in any case, more than one space",
+			config:      cfg,
+			header:      map[string]string{"Authorization": "bearer   the-api-key"},
+			wantStatus:  http.StatusOK,
+			wantReached: true,
+		},
+		{
+			name:       "wrong bearer token of the same length",
+			config:     cfg,
+			header:     map[string]string{"Authorization": "Bearer the-api-kez"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "api key under another scheme",
+			config:     cfg,
+			header:     map[string]string{"Authorization": "Basic the-api-key"},
+			wantStatus: http.StatusUnauthorized,
+		},
+		{
+			name:       "empty api key never matches an empty bearer token",
+			config:     Config{},
+			header:     map[string]string{"Authorization": "Bearer "},
+			wantStatus: http.StatusUnauthorized,
+		},
 	}
 
 	for _, tt := range tests {
@@ -122,8 +156,9 @@ func TestWithAuthJwt(t *testing.T) {
 	}{
 		{"valid token", "Bearer " + testToken(t, "alice", time.Hour), http.StatusOK},
 		{"expired token", "Bearer " + testToken(t, "alice", -time.Hour), http.StatusUnauthorized},
-		{"scheme is case sensitive", "bearer " + testToken(t, "alice", time.Hour), http.StatusUnauthorized},
-		{"double space", "Bearer  " + testToken(t, "alice", time.Hour), http.StatusUnauthorized},
+		{"scheme in any case", "bearer " + testToken(t, "alice", time.Hour), http.StatusOK},
+		{"double space", "Bearer  " + testToken(t, "alice", time.Hour), http.StatusOK},
+		{"other scheme", "Basic " + testToken(t, "alice", time.Hour), http.StatusUnauthorized},
 	}
 
 	for _, tt := range tests {
@@ -177,5 +212,58 @@ func TestWithAuthUnauthorizedBody(t *testing.T) {
 	}
 	if got, want := rec.Body.String(), `{"error":"not authorized"}`; got != want+"\n" && got != want {
 		t.Errorf("body = %q, want %q", got, want)
+	}
+}
+
+// TestWithAuthWarnsAboutXApiKey: a request authorized through X-Api-Key logs the
+// deprecation warning once per client, a bearer token never does.
+func TestWithAuthWarnsAboutXApiKey(t *testing.T) {
+	logger, buf := bufferLogger()
+	handler := WithAuth(okHandler(new(bool)), Config{ApiKey: "the-api-key"})
+
+	send := func(remoteAddr string, header, value string) int {
+		req := httptest.NewRequest(http.MethodGet, "/health", nil).
+			WithContext(ContextWithLogger(context.Background(), logger))
+		req.RemoteAddr = remoteAddr
+		req.Header.Set(header, value)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	warnings := func() int { return strings.Count(buf.String(), "X-Api-Key is deprecated") }
+
+	if code := send("192.0.2.1:5000", "Authorization", "Bearer the-api-key"); code != http.StatusOK || warnings() != 0 {
+		t.Fatalf("bearer: status %d, %d warnings; want 200 and none", code, warnings())
+	}
+	if code := send("192.0.2.1:5000", "X-Api-Key", "the-api-key"); code != http.StatusOK || warnings() != 1 {
+		t.Fatalf("first X-Api-Key: status %d, %d warnings; want 200 and one", code, warnings())
+	}
+	send("192.0.2.1:5001", "X-Api-Key", "the-api-key") // same client, another port
+	if warnings() != 1 {
+		t.Errorf("same client warned again: %d warnings", warnings())
+	}
+	send("192.0.2.2:5000", "X-Api-Key", "the-api-key")
+	if warnings() != 2 {
+		t.Errorf("second client not warned: %d warnings", warnings())
+	}
+	send("192.0.2.3:5000", "X-Api-Key", "wrong")
+	if warnings() != 2 {
+		t.Errorf("a rejected request was warned about: %d warnings", warnings())
+	}
+	if !strings.Contains(buf.String(), "client=192.0.2.2") {
+		t.Errorf("warning does not name the client:\n%s", buf.String())
+	}
+}
+
+func TestClientSetIsBounded(t *testing.T) {
+	s := newClientSet(2)
+	if !s.add("a") || !s.add("b") {
+		t.Fatal("first two clients not recorded")
+	}
+	if s.add("a") {
+		t.Error("a client was recorded twice")
+	}
+	if s.add("c") {
+		t.Error("a full set recorded another client")
 	}
 }

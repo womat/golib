@@ -13,7 +13,7 @@ both sections before putting this on a public interface.
 
 | Function | Comment |
 |---|---|
-| `func WithAuth(h http.Handler, config Config) http.Handler` | API key via `X-Api-Key`, or JWT via `Authorization: Bearer`; 401 otherwise |
+| `func WithAuth(h http.Handler, config Config) http.Handler` | API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; 401 otherwise |
 | `type Config struct{ ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything |
 | `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers; **does not** answer preflights |
 | `func WithAllowedOrigins(origins ...string) CORSOption` | restrict to a list, echo only on a match, set `Vary: Origin` |
@@ -174,6 +174,9 @@ Known and deliberately left alone:
 - **The length of the API key stays observable.** The comparison is constant
   time (`crypto/subtle`), but a key of a different length is still rejected
   faster than a wrong one of the same length.
+- **The `X-Api-Key` warning stops after 256 clients per handler.** The set of
+  warned clients is bounded so that a flood of addresses cannot grow it; past
+  the bound the header still works, silently.
 - **No rate limiting and no logging of failed authentication.** A brute-force
   attempt against the API key is invisible, while the IP filter does log its
   rejections.
@@ -198,5 +201,3 @@ Known and deliberately left alone:
   handler with a partially consumed body. Only on a read error, and silently.
 - **`WithCORS` sets `Allow-Methods`, `Allow-Headers` and `Max-Age` even when the
   origin is not on the list** and `Allow-Origin` is deliberately withheld.
-- **The `Bearer` scheme is matched case-sensitively** and a single space is
-  required, where RFC 7235 allows any case and more whitespace.

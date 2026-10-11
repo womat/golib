@@ -38,7 +38,9 @@ need.
 | GET    | `/version` | —       | Application name and version       |
 | GET    | `/health`  | API Key | Runtime metrics (memory, uptime …) |
 
-Authentication via the `X-Api-Key` header.
+Authentication with the API key as a bearer token, `Authorization: Bearer <key>`. The
+`X-Api-Key` header is deprecated: still accepted, but each client using it is logged once as a
+warning.
 
 ### Examples
 
@@ -47,7 +49,7 @@ Authentication via the `X-Api-Key` header.
 curl -k https://localhost:8443/version
 
 # Health check
-curl -k -H "X-Api-Key: your-api-key" https://localhost:8443/health
+curl -k -H "Authorization: Bearer your-api-key" https://localhost:8443/health
 ```
 
 ---

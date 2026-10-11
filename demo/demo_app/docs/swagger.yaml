@@ -51,6 +51,7 @@ paths:
           schema:
             type: string
       security:
+      - BearerAuth: []
       - ApiKeyAuth: []
       summary: Get health data
       tags:
@@ -76,7 +77,14 @@ paths:
       - info
 securityDefinitions:
   ApiKeyAuth:
+    description: 'Deprecated: send the key as a bearer token instead (BearerAuth).
+      Still accepted, but logged as a warning.'
     in: header
     name: X-Api-Key
+    type: apiKey
+  BearerAuth:
+    description: 'The API key as a bearer token: "Bearer <key>".'
+    in: header
+    name: Authorization
     type: apiKey
 swagger: "2.0"
