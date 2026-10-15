@@ -34,7 +34,7 @@ slog.SetDefault(logger.Logger) // optional, but what the services do
 | `stdout` | `os.Stdout` |
 | `stderr` | `os.Stderr` |
 | `null` | discarded |
-| anything else | treated as a file path, created if missing, appended to otherwise |
+| anything else | treated as a file path, created with mode `0640` if missing, appended to otherwise |
 
 | `logLevel` | Level |
 |---|---|

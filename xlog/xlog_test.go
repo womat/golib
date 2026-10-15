@@ -53,6 +53,25 @@ func TestFileDestination(t *testing.T) {
 	}
 }
 
+// A new log file is readable for owner and group only.
+func TestFileDestinationMode(t *testing.T) {
+	path := logFilePath(t)
+
+	logger, err := Init(path, "info")
+	if err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	defer logger.Close()
+
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if mode := info.Mode().Perm(); mode&^0o640 != 0 {
+		t.Errorf("mode = %v, want at most 0640", mode)
+	}
+}
+
 func TestFileDestinationAppends(t *testing.T) {
 	path := logFilePath(t)
 

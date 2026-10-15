@@ -126,7 +126,9 @@ func Init(dest string, logLevel string, opts ...Option) (*LoggerWrapper, error) 
 	case "null":
 		out.dest = io.Discard
 	default:
-		file, err := os.OpenFile(dest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		// 0640: a log names clients, callers and errors, and is nobody else's
+		// business. The umask may narrow it further; an existing file keeps its mode.
+		file, err := os.OpenFile(dest, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o640)
 		if err != nil {
 			return nil, err
 		}
