@@ -30,10 +30,10 @@ The config file path can also be set via the environment variable `CONFIG_FILE`.
 **Examples:**
 
 ```bash
-demo_app --config /etc/demo_app/config.yaml
+demo_app --config /opt/demo_app/etc/config.yaml
 demo_app --debug
 demo_app --version
-CONFIG_FILE=/etc/demo_app/config.yaml demo_app
+CONFIG_FILE=/opt/demo_app/etc/config.yaml demo_app
 ```
 
 ---

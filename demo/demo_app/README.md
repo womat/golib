@@ -11,6 +11,14 @@ optional Swagger UI that production builds do not contain.
 Start a new service by copying this directory and stripping what it does not
 need.
 
+> **Note:** the demo still authenticates with `apiKey` and JWT, which are
+> deprecated in `golib/web`. The current pattern for a service — a token file
+> `token-hashes` holding SHA-256 hashes, a `<svc> token add|remove|list`
+> subcommand via `web.TokenCommand`, everything under `/opt/<svc>` owned by root,
+> `etc` as `root:<svc>` with mode 750 — is in
+> [github.com/womat/tadl](https://github.com/womat/tadl). The demo moves to it
+> with golib v2.
+
 ---
 
 ## Features
@@ -56,24 +64,8 @@ curl -k -H "Authorization: Bearer your-api-key" https://localhost:8443/health
 
 ## Command-line Flags
 
-| Flag        | Default                         | Description                                                         |
-|-------------|---------------------------------|---------------------------------------------------------------------|
-| `--config`  | `/opt/demo_app/etc/config.yaml` | Path to the configuration file                                      |
-| `--debug`   | `false`                         | Enable debug logging to stdout (overrides log settings from config) |
-| `--version` | `false`                         | Print the application version and exit                              |
-| `--about`   | `false`                         | Print application details and exit                                  |
-| `--help`    | `false`                         | Print this help message and exit                                    |
-
-The config file path can also be set via the environment variable `CONFIG_FILE`.
-
-**Examples:**
-
-```bash
-demo_app --config /etc/demo_app/config.yaml
-demo_app --debug
-demo_app --version
-CONFIG_FILE=/etc/demo_app/config.yaml demo_app
-```
+See [`cmd/README.md`](cmd/README.md#command-line-flags). The config file path
+can also be set via the environment variable `CONFIG_FILE`.
 
 ---
 
@@ -89,8 +81,7 @@ webserver:
 ```
 
 Only that braced form is expanded. A bare `$NAME` is left alone, so a value like
-`pa$$w0rd` survives unchanged — `os.ExpandEnv` over the whole file used to turn
-it into `pa`. A referenced variable that is not set is an error naming it, not
+`pa$$w0rd` survives unchanged. A referenced variable that is not set is an error naming it, not
 an empty string, because an empty secret is the kind of mistake that only shows
 up in production.
 
@@ -144,6 +135,7 @@ Beyond the environment, the API key, the log level and the port range:
 The IP lists are the reason for the last row: a typo there would otherwise
 become a rule that silently never matches.
 
+### Example configuration
 
 Default location: `/opt/demo_app/etc/config.yaml`. Environment variables are
 expanded inside the file as described [above](#environment-variables).

@@ -1,9 +1,9 @@
 # web
 
 Composable `http.Handler` middleware for the services in this ecosystem, plus
-the JSON helpers they all repeat: bearer-token, API-key and JWT
-authentication, CORS, an IP filter, request logging, and one uniform error
-body.
+the JSON helpers they all repeat: authentication with bearer tokens from a
+token file, CORS, an IP filter, request logging, and one uniform error body.
+The API key and JWT authentication are **deprecated** and removed in v2.
 
 It is middleware, not a framework. Applications assemble a plain
 `http.ServeMux` and wrap it; `demo/demo_app/app/routes.go` is the canonical
@@ -14,8 +14,8 @@ both sections before putting this on a public interface.
 
 | Function | Comment |
 |---|---|
-| `func WithAuth(h http.Handler, config Config) http.Handler` | a bearer token from `Config.Tokens` (checked first, see [Tokens](#tokens)), or the API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
-| `type Config struct{ Tokens []Token; ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything |
+| `func WithAuth(h http.Handler, config Config) http.Handler` | a bearer token from `Config.Tokens` (checked first, see [Tokens](#tokens)), or (**deprecated**) the API key as `Authorization: Bearer <key>` or via `X-Api-Key` (logged as a warning once per client), or (**deprecated**) a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
+| `type Config struct{ Tokens []Token; ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything; `ApiKey`, `JwtSecret` and `JwtID` are **deprecated**, use `Tokens` |
 | `type Token struct{ Name string; Hash [32]byte }` | one accepted bearer token: the name of its caller and the SHA-256 of the token |
 | `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line or a duplicate name is an error |
 | `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
@@ -38,7 +38,6 @@ both sections before putting this on a public interface.
 | `func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error)` | JSON request body, limited to 1 MiB, trailing data refused |
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
-
 | `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: token name, `apikey`, or the JWT user |
 | `type ContextKey string` | the type of the context key `WithAuth` stores the user under; read it with `UserFrom` |
 
@@ -139,7 +138,7 @@ the library changes no running service. `WithAllowedOrigins`,
 list — a custom header list must repeat `Content-Type` and the auth headers if
 it still needs them.
 
-It is workable for an API that is guarded by an API key and an IP filter, and
+It is workable for an API that is guarded by a bearer token and an IP filter, and
 wrong for one that relies on browser credentials: with `*`, any page on the
 internet can read the responses its visitor's browser is allowed to fetch.
 Restrict it per service:
@@ -177,9 +176,7 @@ at the proxy in that setup.
 `WithLogging` writes one entry per request: method, path, status, response
 size, duration. **The level follows the response status** — `Error` from 500,
 `Warn` from 400, `Info` below — so the access log is visible at the level a
-service actually runs at. It used to be `Debug` throughout, which meant no
-access log at all in production; `WithLogLevel(slog.LevelDebug)` restores that
-if it was what you wanted. A service that is polled every few seconds can put
+service actually runs at; `WithLogLevel` puts every entry at one level. A service that is polled every few seconds can put
 only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
 rejected ones visible as warnings; the first successful request of each
 caller from each client is still logged at `Info` (`firstAccess=true`), so the
@@ -202,8 +199,7 @@ request — but passing one explicitly is the point of the parameter.
 `WithLogging` puts its logger into the request context, and `WriteError` and
 `WithIPFilter` read it back with `LoggerFrom`. Wrap with `WithLogging` outermost
 and every entry this package writes goes to the application's logger; without
-it they fall back to `slog.Default()`, which is what earlier versions always
-did.
+it they fall back to `slog.Default()`.
 
 ```go
 handler := web.WithIPFilter(mux, allowed, blocked, web.WithIPFilterLogger(logger))
@@ -260,7 +256,7 @@ Known and deliberately left alone:
 - **`X-Forwarded-For` is ignored**, see above.
 - **No `Enabled` check before the work.** `WithLogging` builds its attributes
   and, with `WithBodyLogging`, buffers the bodies even when the handler would
-  discard the entry. Since the entry is now written at `Info` and above, that
+  discard the entry. Since the entry is written at `Info` and above, that
   work is almost always used; body logging is opt-in and meant for debugging.
 - **`logResponse` does not implement `io.ReaderFrom`.** With this middleware in
   the chain, `http.ServeFile` and `io.Copy` lose the `sendfile` path.

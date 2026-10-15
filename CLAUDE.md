@@ -99,9 +99,9 @@ and reports transmission errors through `WithErrorHandler` (unset, they are drop
 
 **`web` is middleware, not a framework.** It provides composable `http.Handler` wrappers —
 `WithAuth` (bearer tokens stored as SHA-256 hashes in a token file, managed with
-`TokenCommand` - `token add/remove/list` for a service's `main`; else API key as
-`Authorization: Bearer`, or via the deprecated `X-Api-Key`, or JWT,
-delegating to `jwt_util`), `WithCORS` /
+`TokenCommand` - `token add/remove/list` for a service's `main`; the API key (as
+`Authorization: Bearer` or `X-Api-Key`) and JWT via `jwt_util` are **deprecated** and
+removed in v2), `WithCORS` /
 `HandlePreflight`, `WithIPFilter`, `WithLogging` — plus generic `Encode[T]`/`Decode[T]`
 JSON helpers and `WriteError`/`ApiError` for uniform JSON error bodies. Applications
 assemble a plain `http.ServeMux` and wrap it; see `demo/demo_app/app/routes.go` for the
@@ -128,7 +128,7 @@ be moved off it** — `SetKey` is a method on `SymCrypt`, and it pads a short ke
 prefix of that same default. Treat `EncryptedString` as protection against accidental
 disclosure only; `crypt/README.md` has the full security model, and the code is
 deliberately frozen (see the *Not addressed* section there). `jwt_util` mints and validates
-HS256 tokens and is what `web.WithAuth` delegates to. `mqtt` is a thread-safe Paho wrapper
+HS256 tokens and is what `web.WithAuth` delegates to — deprecated with JWT auth. `mqtt` is a thread-safe Paho wrapper
 with reconnect handling.
 
 ## Conventions
@@ -144,8 +144,8 @@ with reconnect handling.
 - Sentinel errors are exported package vars (`ErrInvalidLevel`, `ErrUnauthorized`, …),
   compared with `errors.Is`. `gpio` and `mqtt` prefix the message with the package name;
   `web`, `jwt_util` and `manchester/encoder` do not, because those texts can reach a
-  client. Don't change an existing message — `signit`, `sqlite4router`, `tadl` and
-  `s0meter` consume this library.
+  client. Don't change an existing message — `tadl`, `s0meter`, `smartmeter`,
+  `modbusgateway` and `relayhat` consume this library.
 - Every resource-owning type (`Pin`, `Encoder`, `Decoder`, `LoggerWrapper`, mqtt `Handler`)
   has an explicit `Close()`/`Disconnect()` that callers must defer.
 - Commit subjects follow Conventional Commits, `type(scope): description` with an optional scope (`fix: default port 8443`, `feat(ui): …`), types `feat`, `fix`, `docu`, `chore`, `refactor`.
@@ -173,7 +173,7 @@ certificate first. `--check` reports pending `go fix` work without writing, `--s
 drops the step that needs a network. Prefer it over running the tools by hand: `go fix
 ./...`, `go vet ./...` and `golangci-lint run ./...` all abort on `gpio/rpi` on macOS, and
 none of them see the demo modules. All four steps are clean in all six
-modules as of 21.09.2026.
+modules.
 
 Linter configuration is `.golangci.yml` at the root — the demo modules find it by walking
 up, so there is one file, not six. The default linter set is kept and every exclusion
@@ -196,15 +196,14 @@ cannot be complete on macOS. When adding a package or a demo module, extend the 
 a new demo module is invisible to every existing job.
 
 Every job takes its Go version from the `go.mod` of the module it builds, and **all six
-modules declare the same `go 1.27`** — raised from 1.25.0/1.26 on 21.09.2026, deliberately
-supporting one version rather than a range. Keep them in step; a module left behind silently
-gets a different toolchain in CI. Of the consumers only `tadl` and `s0meter` import this
-library (`signit` and `sqlite4router` carry their own `crypt` copies), and `tadl` still
-declares `go 1.25.0` — it needs its own directive raised when it picks up the next tag.
+modules declare the same `go 1.27`**, deliberately supporting one version rather than a
+range. Keep them in step; a module left behind silently gets a different toolchain in CI.
+All five consumers (`tadl`, `s0meter`, `smartmeter`, `modbusgateway`, `relayhat`) import
+this library and declare `go 1.27` as well; `signit` and `sqlite4router` carry their own
+`crypt` copies.
 
 **Dependencies:** `.github/dependabot.yml`, weekly, one `gomod` entry per module plus the
 GitHub Actions themselves, with updates grouped (`golang.org/x/*`, the swagger generator,
-everything else). It exists because by 21.09.2026 `golang.org/x/crypto` was nine minor
-releases behind. When updating by hand, raise the direct requirements and let `go mod tidy`
-settle the rest — `go get -u ./...` in `demo/demo_app` drags the whole swagger graph
+everything else), so that `golang.org/x/crypto` and the rest do not fall behind. When
+updating by hand, raise the direct requirements and let `go mod tidy` settle the rest — `go get -u ./...` in `demo/demo_app` drags the whole swagger graph
 forward, which affects only `docs/generate.sh` and has broken the tagged build before.

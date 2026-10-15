@@ -1,5 +1,9 @@
 # jwt_util
 
+> **Deprecated.** JWT authentication in `web` is deprecated in favour of bearer
+> tokens from a token file (`web.Config.Tokens`, see
+> [`web/README.md`](../web/README.md#tokens)); this package is removed in v2.
+
 Signed JWTs for the services in this ecosystem: one function to mint a token,
 one to validate it, and five sentinel errors that say why a token was refused.
 
@@ -76,9 +80,8 @@ issuer, `JwtID` the ID, `JwtSecret` the secret, and the subject is always
 distinguish an expired token from an invalid one, and it does not log which it
 was. Code that needs the difference must call `ValidateToken` itself.
 
-`WithAuth` stores the validated user in the request context under an unexported
-key, so `Claims.User` is not reachable from a handler. See the *Not addressed*
-section of [`web/README.md`](../web/README.md).
+`WithAuth` stores `Claims.User` in the request context; a handler reads it with
+`web.UserFrom` (see [`web/README.md`](../web/README.md)).
 
 ## Testing
 

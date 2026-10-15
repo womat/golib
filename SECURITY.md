@@ -1,9 +1,11 @@
 # Security
 
 golib is a library: a vulnerability in it is a vulnerability in every program that uses it, among them
-[relayhat](https://github.com/womat/relayhat) and [s0meter](https://github.com/womat/s0meter). Its packages
-handle API keys and JWTs (`web`, `jwt_util`), encryption (`crypt`) and GPIO access (`gpio`). Reports of security
-issues are taken seriously.
+[tadl](https://github.com/womat/tadl), [s0meter](https://github.com/womat/s0meter),
+[smartmeter](https://github.com/womat/smartmeter), [modbusgateway](https://github.com/womat/modbusgateway) and
+[relayhat](https://github.com/womat/relayhat). Its packages handle bearer tokens (`web`; the deprecated API key and
+JWTs in `web` and `jwt_util`), encryption (`crypt`) and GPIO access (`gpio`). Reports of security issues are taken
+seriously.
 
 ## Reporting a vulnerability
 

@@ -23,7 +23,7 @@ Requires Go 1.27 or later.
 | [`manchester/encoder`](manchester/README.md) | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending |
 | [`manchester/decoder`](manchester/README.md) | Manchester decoder for any bit rate: recovers and follows the sender's clock, with tolerance handling |
 | [`web`](web/README.md) | Composable `http.Handler` middleware: auth with hashed bearer tokens, CORS, IP filter, logging, JSON helpers |
-| [`jwt_util`](jwt_util/README.md) | Generation and validation of signed JWTs with issuer/subject/ID checks |
+| [`jwt_util`](jwt_util/README.md) | Generation and validation of signed JWTs with issuer/subject/ID checks — **deprecated** with the JWT auth in `web` (use bearer tokens), removed in v2 |
 | [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` |
 | [`xlog`](xlog/README.md) | `log/slog` wrapper with destination and level selection |
 | [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling |
@@ -218,7 +218,7 @@ whole library at once. First fetch all tags and display them:
 
 Then create a new tag:
 
-    git tag -a v1.0.6 -m "Release 1.0.6"
+    git tag -a vX.Y.Z -m "Release X.Y.Z"
     git push --tags
 
 See the [Go module documentation](https://go.dev/doc/modules/managing-source)

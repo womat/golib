@@ -84,8 +84,7 @@ go test -race ./xlog/
 ```
 
 Coverage is 100 % of statements. The file destination is exercised in a
-temporary directory — an earlier version of the example test did not, which is
-how `xlog/app.log` once ended up committed to the repository.
+temporary directory, so no test leaves a log file in the repository.
 
 ## Not addressed
 

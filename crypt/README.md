@@ -183,7 +183,5 @@ have to rediscover it:
 - `ed25519.go` imports the deprecated `golang.org/x/crypto/ed25519` instead of
   `crypto/ed25519`, and depends on `github.com/mikesmitty/edkey`, untouched
   since 2017. `ssh.MarshalPrivateKey` in the already-vendored
-  `golang.org/x/crypto v0.48.0` does the same job and would drop the
+  `golang.org/x/crypto v0.57.0` does the same job and would drop the
   dependency.
-- No package doc comment with the `Example usage` block this repository uses
-  elsewhere.
