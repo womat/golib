@@ -25,9 +25,9 @@ import (
 // SetupRoutes configures all HTTP routes and global middleware for the application.
 func (app *App) SetupRoutes() {
 	webCfg := web.Config{
-		ApiKey:    app.config.Webserver.ApiKey,
-		JwtSecret: app.config.Webserver.JwtSecret,
-		JwtID:     app.config.Webserver.JwtID,
+		ApiKey:    app.config.Webserver.ApiKey,    //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
+		JwtSecret: app.config.Webserver.JwtSecret, //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
+		JwtID:     app.config.Webserver.JwtID,     //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
 		AppName:   MODULE,
 	}
 

@@ -22,11 +22,23 @@ type Config struct {
 	Tokens []Token
 
 	// ApiKey is a single key in plain text, accepted as a bearer token or in
-	// the deprecated X-Api-Key header. Superseded by Tokens.
-	ApiKey    string
+	// the X-Api-Key header.
+	//
+	// Deprecated: use Tokens (token file); removed in v2.
+	ApiKey string
+
+	// JwtSecret is the secret JWTs are validated with.
+	//
+	// Deprecated: use Tokens (token file); removed in v2.
 	JwtSecret string
-	JwtID     string
-	AppName   string
+
+	// JwtID is the ID a JWT must carry.
+	//
+	// Deprecated: use Tokens (token file); removed in v2.
+	JwtID string
+
+	// AppName is the issuer a JWT must name; only JWT authentication uses it.
+	AppName string
 }
 
 // ContextKey is used for storing values in context safely
