@@ -237,6 +237,43 @@ func TestWithAuthTokens(t *testing.T) {
 	}
 }
 
+// TestFirstAccessGoesToInfo: with WithSuccessLevel(Debug), the first
+// successful request of a caller from a client is logged at Info, the next
+// ones at Debug, and another client counts as new.
+func TestFirstAccessGoesToInfo(t *testing.T) {
+	cfg := Config{Tokens: []Token{{Name: "nodered", Hash: HashToken("the-token")}}}
+	var buf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	h := WithLogging(WithAuth(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}), cfg),
+		logger, WithSuccessLevel(slog.LevelDebug))
+
+	call := func(client, auth string) {
+		req := httptest.NewRequest(http.MethodGet, "/data", nil)
+		req.RemoteAddr = client + ":40000"
+		req.Header.Set("Authorization", auth)
+		h.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	call("192.0.2.7", "Bearer the-token")
+	call("192.0.2.7", "Bearer the-token")
+	call("192.0.2.8", "Bearer the-token")
+	call("192.0.2.9", "Bearer wrong") // rejected: a warning, not a first access
+
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 3 {
+		t.Fatalf("want 3 lines at Info and above, got %d:\n%s", len(lines), buf.String())
+	}
+	for i, want := range []string{"192.0.2.7", "192.0.2.8"} {
+		if !strings.Contains(lines[i], "level=INFO") || !strings.Contains(lines[i], want) ||
+			!strings.Contains(lines[i], "firstAccess=true") || !strings.Contains(lines[i], "user=nodered") {
+			t.Errorf("line %d: %s", i, lines[i])
+		}
+	}
+	if !strings.Contains(lines[2], "level=WARN") || strings.Contains(lines[2], "firstAccess") {
+		t.Errorf("rejected request: %s", lines[2])
+	}
+}
+
 // TestAccessLogNamesCallerAndClient: the access log written by WithLogging
 // carries the client address always and the token name once WithAuth
 // accepted the request.

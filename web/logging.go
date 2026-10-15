@@ -52,7 +52,11 @@ func WithLogLevel(level slog.Level) LogOption {
 //
 // For a service that is polled - a web page asking every few seconds -
 // slog.LevelDebug keeps the successful requests out of the normal log while a
-// rejected one, with its client, still shows as a warning. WithLogLevel takes
+// rejected one, with its client, still shows as a warning. The first
+// successful request of each authenticated caller from each client is still
+// written at Info, marked firstAccess=true, so the normal log shows who uses
+// the service. Up to 256 such pairs are remembered per WithLogging; a service
+// that rebuilds its handler on reload logs them again. WithLogLevel takes
 // precedence over it.
 func WithSuccessLevel(level slog.Level) LogOption {
 	return func(c *logConfig) {
@@ -165,6 +169,9 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 		logger = slog.Default()
 	}
 
+	// Callers already logged at Info; see WithSuccessLevel.
+	seen := newClientSet(maxWarnedClients)
+
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
@@ -206,8 +213,18 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 				),
 			}
 
+			level := cfg.levelFor(lr.status)
 			if caller.name != "" {
 				attrs = append(attrs, slog.String("user", caller.name))
+
+				// With successful requests below Info, the first one of each caller
+				// from each client still goes to Info, so the normal log shows who
+				// uses the service without a line per poll.
+				if level < slog.LevelInfo && cfg.level == nil && lr.status < http.StatusBadRequest &&
+					seen.add(caller.name+" "+clientHost(r)) {
+					level = slog.LevelInfo
+					attrs = append(attrs, slog.Bool("firstAccess", true))
+				}
 			}
 
 			if cfg.bodyLimit > 0 {
@@ -221,7 +238,7 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 				))
 			}
 
-			logger.Log(r.Context(), cfg.levelFor(lr.status), "request", attrs...)
+			logger.Log(r.Context(), level, "request", attrs...)
 		},
 	)
 }

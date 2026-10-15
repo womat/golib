@@ -180,7 +180,9 @@ service actually runs at. It used to be `Debug` throughout, which meant no
 access log at all in production; `WithLogLevel(slog.LevelDebug)` restores that
 if it was what you wanted. A service that is polled every few seconds can put
 only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
-rejected ones visible as warnings. Every entry names the client
+rejected ones visible as warnings; the first successful request of each
+caller from each client is still logged at `Info` (`firstAccess=true`), so the
+normal log shows who uses the service. Every entry names the client
 (`request.client`) and, once `WithAuth` accepted the request, the caller
 (`user`). **Bodies are not logged** unless `WithBodyLogging` asks
 for it, and then only up to its byte limit and only for `application/json`,
