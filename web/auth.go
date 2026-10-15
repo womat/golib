@@ -34,6 +34,14 @@ type ContextKey string
 
 const contextKeyUser ContextKey = "user"
 
+// UserFrom returns who WithAuth authorized the request as: the name of the
+// bearer token, "apikey" for the API key, or the user of a JWT. ok is false
+// outside WithAuth.
+func UserFrom(ctx context.Context) (user string, ok bool) {
+	user, ok = ctx.Value(contextKeyUser).(string)
+	return user, ok
+}
+
 // WithAuth is a middleware that checks if the request is authorized.
 //   - If the request is not authorized, it returns a 401 Unauthorized response.
 //   - If the request is authorized, it calls the next handler.

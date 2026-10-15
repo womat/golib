@@ -237,6 +237,27 @@ func TestWithAuthTokens(t *testing.T) {
 	}
 }
 
+func TestUserFrom(t *testing.T) {
+	cfg := Config{Tokens: []Token{{Name: "nodered", Hash: HashToken("the-token")}}}
+
+	var user string
+	var ok bool
+	h := WithAuth(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		user, ok = UserFrom(r.Context())
+	}), cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer the-token")
+	h.ServeHTTP(httptest.NewRecorder(), req)
+	if !ok || user != "nodered" {
+		t.Errorf("UserFrom = %q, %v; want nodered, true", user, ok)
+	}
+
+	if user, ok := UserFrom(httptest.NewRequest(http.MethodGet, "/", nil).Context()); ok || user != "" {
+		t.Errorf("outside WithAuth: %q, %v", user, ok)
+	}
+}
+
 // TestFirstAccessGoesToInfo: with WithSuccessLevel(Debug), the first
 // successful request of a caller from a client is logged at Info, the next
 // ones at Debug, and another client counts as new.

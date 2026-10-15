@@ -39,7 +39,8 @@ both sections before putting this on a public interface.
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
 
-| `type ContextKey string` | the type of the context key `WithAuth` stores the user under; the key itself is unexported, see [Not addressed](#not-addressed) |
+| `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: token name, `apikey`, or the JWT user |
+| `type ContextKey string` | the type of the context key `WithAuth` stores the user under; read it with `UserFrom` |
 
 Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`, and for
 token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. Unlike `gpio`
@@ -252,10 +253,6 @@ Known and deliberately left alone:
 - **`HashToken` is plain SHA-256, unsalted.** Right for the random 32-byte
   tokens `NewToken` makes, which cannot be enumerated; wrong for anything a
   person chose. Do not use it for passwords.
-- **The authenticated user cannot be read by the handler.** `WithAuth` puts it
-  into the request context under an unexported key (`contextKeyUser`) and there
-  is no exported getter; only the access log shows it. The *type* `ContextKey` is exported, which is of no help: without the
-  key value the context plumbing stays unusable from outside the package.
 - **`Config` is not validated.** An empty `Config` silently rejects every
   request instead of reporting that the middleware was never configured.
 - **`Decode` does not reject unknown fields.** Extra JSON keys are ignored
