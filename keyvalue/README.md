@@ -1,5 +1,9 @@
 # keyvalue
 
+> **Deprecated:** keyvalue moved to its own module,
+> [github.com/womat/keyvalue](https://github.com/womat/keyvalue), with the same API —
+> change the import path. It is removed from golib in v2.
+
 A `map[string]any` with converting typed accessors, for data whose shape is
 only known at runtime — a decoded JSON document, a row from a database, a set
 of measured values.

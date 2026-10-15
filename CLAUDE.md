@@ -119,7 +119,8 @@ starting a new service in this ecosystem, copy this structure.
 
 **Support packages.** `xlog` wraps `slog` with destination (`stdout`/`stderr`/`null`/file)
 and level selection, returning a wrapper whose `Close()` releases the file handle.
-`keyvalue.Record` is a `map[string]any` with converting typed accessors. `crypt` provides
+`keyvalue.Record` is a `map[string]any` with converting typed accessors — **deprecated** since
+v1.5.1, it lives on as `github.com/womat/keyvalue`; no service imports it any more, and v2 drops it. `crypt` provides
 bcrypt hashing, AES-256 symmetric encryption, Ed25519 key-file generation, and
 `EncryptedString`, which marshals as ciphertext so plaintext never lands in YAML/JSON or
 logs. **`crypt` ships a compiled-in, public default AES key, and `EncryptedString` cannot

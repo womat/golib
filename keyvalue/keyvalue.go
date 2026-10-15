@@ -4,6 +4,9 @@
 // was asked for returns the zero value rather than an error.
 // For raw access without conversion, use the Value method.
 //
+// Deprecated: keyvalue moved to its own module, github.com/womat/keyvalue, with the same
+// API; change the import path. It is removed from golib in v2.
+//
 // # Example usage
 //
 //	func main() {
@@ -22,7 +25,8 @@
 //	    }
 //
 //	    for _, k := range r.GetSortedKeys() {
-//	        fmt.Println(k, r.Value(k))
+//	        v, _ := r.Value(k)
+//	        fmt.Println(k, v)
 //	    }
 //	    _, _, _, _ = port, debug, factor, missing
 //	}

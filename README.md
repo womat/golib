@@ -27,7 +27,7 @@ Requires Go 1.27 or later.
 | [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` |
 | [`xlog`](xlog/README.md) | `log/slog` wrapper with destination and level selection |
 | [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling |
-| [`keyvalue`](keyvalue/README.md) | Generic `map[string]any` record with converting typed accessors |
+| [`keyvalue`](keyvalue/README.md) | **Deprecated**, moved to [github.com/womat/keyvalue](https://github.com/womat/keyvalue); removed in v2 |
 
 Every package carries a doc comment with a runnable `# Example usage` block, so
 `go doc github.com/womat/golib/<pkg>` is the fastest way to get started. Eight
