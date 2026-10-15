@@ -3,6 +3,7 @@ package web
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"log/slog"
@@ -157,6 +158,11 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 			// middleware below this one report to the same place.
 			r = r.WithContext(ContextWithLogger(r.Context(), logger))
 
+			// WithAuth runs inside this handler and cannot hand a context
+			// back out; it records the authenticated caller here instead.
+			caller := new(requestCaller)
+			r = r.WithContext(context.WithValue(r.Context(), contextKeyCaller, caller))
+
 			// Read and restore the request body before the handler consumes it,
 			// but never more than the limit.
 			var reqBody []byte
@@ -175,12 +181,17 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 				slog.Group("request",
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),
+					slog.String("client", clientHost(r)),
 				),
 				slog.Group("response",
 					slog.Int("status", lr.status),
 					slog.Int("size", lr.size),
 					slog.Duration("duration", time.Since(start)),
 				),
+			}
+
+			if caller.name != "" {
+				attrs = append(attrs, slog.String("user", caller.name))
 			}
 
 			if cfg.bodyLimit > 0 {
@@ -197,6 +208,22 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 			logger.Log(r.Context(), cfg.levelFor(lr.status), "request", attrs...)
 		},
 	)
+}
+
+// requestCaller is where WithAuth records who a request was authorized as,
+// for WithLogging to put into the access log.
+type requestCaller struct {
+	name string
+}
+
+const contextKeyCaller ContextKey = "caller"
+
+// recordCaller notes name as the authenticated caller of the request, if
+// WithLogging is in the chain to log it.
+func recordCaller(ctx context.Context, name string) {
+	if c, ok := ctx.Value(contextKeyCaller).(*requestCaller); ok {
+		c.name = name
+	}
 }
 
 // readBodyPrefix returns at most limit bytes of the request body and puts the

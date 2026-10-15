@@ -98,7 +98,9 @@ reaches for `slog.Default()`: `mqtt` and `decoder` take a `*slog.Logger` through
 and reports transmission errors through `WithErrorHandler` (unset, they are dropped).
 
 **`web` is middleware, not a framework.** It provides composable `http.Handler` wrappers —
-`WithAuth` (API key as `Authorization: Bearer`, or via the deprecated `X-Api-Key`, or JWT,
+`WithAuth` (bearer tokens stored as SHA-256 hashes in a token file, managed with
+`TokenCommand` - `token add/remove/list` for a service's `main`; else API key as
+`Authorization: Bearer`, or via the deprecated `X-Api-Key`, or JWT,
 delegating to `jwt_util`), `WithCORS` /
 `HandlePreflight`, `WithIPFilter`, `WithLogging` — plus generic `Encode[T]`/`Decode[T]`
 JSON helpers and `WriteError`/`ApiError` for uniform JSON error bodies. Applications

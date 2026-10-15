@@ -1,8 +1,9 @@
 # web
 
 Composable `http.Handler` middleware for the services in this ecosystem, plus
-the JSON helpers they all repeat: API-key and JWT authentication, CORS, an IP
-filter, request logging, and one uniform error body.
+the JSON helpers they all repeat: bearer-token, API-key and JWT
+authentication, CORS, an IP filter, request logging, and one uniform error
+body.
 
 It is middleware, not a framework. Applications assemble a plain
 `http.ServeMux` and wrap it; `demo/demo_app/app/routes.go` is the canonical
@@ -13,8 +14,13 @@ both sections before putting this on a public interface.
 
 | Function | Comment |
 |---|---|
-| `func WithAuth(h http.Handler, config Config) http.Handler` | API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
-| `type Config struct{ ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything |
+| `func WithAuth(h http.Handler, config Config) http.Handler` | a bearer token from `Config.Tokens` (checked first, see [Tokens](#tokens)), or the API key as `Authorization: Bearer <key>`, or via `X-Api-Key` (**deprecated**, logged as a warning once per client), or a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
+| `type Config struct{ Tokens []Token; ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything |
+| `type Token struct{ Name string; Hash [32]byte }` | one accepted bearer token: the name of its caller and the SHA-256 of the token |
+| `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line or a duplicate name is an error |
+| `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
+| `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -` |
+| `type TokenCommand struct{ … }` / `func (TokenCommand) Run(args []string) int` | the `token add/remove/list` subcommand for a service's `main` |
 | `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers; **does not** answer preflights |
 | `func WithAllowedOrigins(origins ...string) CORSOption` | restrict to a list, echo only on a match, set `Vary: Origin` |
 | `func WithAllowedMethods(methods ...string) CORSOption` | replace the method list |
@@ -34,10 +40,61 @@ both sections before putting this on a public interface.
 
 | `type ContextKey string` | the type of the context key `WithAuth` stores the user under; the key itself is unexported, see [Not addressed](#not-addressed) |
 
-Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`. Unlike `gpio`
+Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`, and for
+token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. Unlike `gpio`
 and `mqtt` they carry no package prefix in their message (`"not authorized"`,
 `"forbidden"`, `"internal server error"`) — the text reaches the client, where a
 prefix would leak the implementation.
+
+## Tokens
+
+A service accepts one bearer token per caller and stores only its SHA-256
+hash, in a token file next to its config:
+
+```
+# /opt/<app>/etc/tokens — one "<name> <sha256>" per line
+nodered 3f2a…c91e
+grafana 8b04…d7a2
+```
+
+Whoever reads the file cannot call the service with it, so it needs no more
+protection than the config: owned by root, readable by the service's group,
+**writable by nobody else** — write access means adding a token of one's own.
+The token itself exists only with the caller, e.g. in Node-RED's encrypted
+credentials.
+
+```go
+tokens, err := web.ReadTokenFile(cfg.Webserver.TokenFile) // stop on error
+webCfg := web.Config{Tokens: tokens}
+```
+
+`WithAuth` hashes the bearer token of a request and compares it with every
+entry, in constant time. A match puts the token's name into the request, and
+`WithLogging` writes it into the access log as `user=nodered`, next to
+`request.client`. Every log line therefore says who called, and a token that
+is no longer in use shows by its absence.
+
+### The `token` subcommand
+
+`TokenCommand` is the command line for the file, ready to be hung into a
+service's `main` (see its doc comment):
+
+```
+<app> token add <name>            write the hash, then print the token once
+<app> token add <name> -dry-run   print token and line, write nothing
+<app> token remove <name>         delete the line
+<app> token list                  print the names, never a hash
+```
+
+`-config` works as it does for the service and defaults to the same file; the
+token file is the one that config names. The token goes to stdout alone, so
+`TOKEN=$(<app> token add nodered)` works; everything else goes to stderr.
+`add` writes before it prints: a token that is shown but stored nowhere cannot
+happen. A new token file gets mode 0640 and the owner and group of the config
+file. Changes apply after a restart of the service.
+
+Rotating without a gap: `add nodered-2`, move the caller to the new token,
+`remove nodered`, restart.
 
 ## Ordering
 
@@ -165,7 +222,9 @@ entry goes to the logger in the request context, see
 go test -race ./web/
 ```
 
-Coverage is 95.9 %, with `net/http/httptest` and no network.
+Coverage is 91.4 %, with `net/http/httptest` and no network. The error
+branches of the atomic file replacement (a failing write, chmod or sync) are
+not reached.
 
 ## Not addressed
 
@@ -177,12 +236,17 @@ Known and deliberately left alone:
 - **The `X-Api-Key` warning stops after 256 clients per handler.** The set of
   warned clients is bounded so that a flood of addresses cannot grow it; past
   the bound the header still works, silently.
-- **No rate limiting and no logging of failed authentication.** A brute-force
-  attempt against the API key is invisible, while the IP filter does log its
-  rejections.
-- **The authenticated user cannot be read.** `WithAuth` puts it into the request
-  context under an unexported key (`contextKeyUser`) and there is no exported
-  getter. The *type* `ContextKey` is exported, which is of no help: without the
+- **No rate limiting.** Failed authentication shows only as a 401 with its
+  `request.client` in the access log, and only where `WithLogging` is in the
+  chain.
+- **Token files are read once, at start.** A change needs a restart of the
+  service; there is no reload on change or on a signal.
+- **`HashToken` is plain SHA-256, unsalted.** Right for the random 32-byte
+  tokens `NewToken` makes, which cannot be enumerated; wrong for anything a
+  person chose. Do not use it for passwords.
+- **The authenticated user cannot be read by the handler.** `WithAuth` puts it
+  into the request context under an unexported key (`contextKeyUser`) and there
+  is no exported getter; only the access log shows it. The *type* `ContextKey` is exported, which is of no help: without the
   key value the context plumbing stays unusable from outside the package.
 - **`Config` is not validated.** An empty `Config` silently rejects every
   request instead of reporting that the middleware was never configured.

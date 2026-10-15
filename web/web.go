@@ -2,7 +2,10 @@
 // small HTTP services. It is middleware, not a framework: build a plain
 // http.ServeMux and wrap it.
 //
-// Authentication accepts an API key as a static bearer token in
+// Authentication accepts a bearer token whose SHA-256 hash is in Config.Tokens,
+// usually read from a token file with ReadTokenFile and managed with the
+// TokenCommand subcommand; the token's name then appears in the access log.
+// For existing clients it also accepts an API key as a static bearer token in
 // Authorization: Bearer, or in the deprecated X-Api-Key header, or a JWT in
 // Authorization: Bearer, validated through jwt_util. CORS, IP filtering and
 // request logging are independent wrappers that can be combined in any order -
@@ -21,7 +24,11 @@
 //
 //	func main() {
 //	    logger := slog.Default()
-//	    cfg := web.Config{ApiKey: os.Getenv("API_KEY"), AppName: "demo"}
+//	    tokens, err := web.ReadTokenFile("/opt/demo/etc/tokens")
+//	    if err != nil {
+//	        log.Fatal(err)
+//	    }
+//	    cfg := web.Config{Tokens: tokens}
 //
 //	    mux := http.NewServeMux()
 //	    mux.Handle("OPTIONS /", web.HandlePreflight())

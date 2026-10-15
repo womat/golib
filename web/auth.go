@@ -17,6 +17,12 @@ var (
 )
 
 type Config struct {
+	// Tokens are the bearer tokens WithAuth accepts, as SHA-256 hashes, usually
+	// read with ReadTokenFile. They are checked first.
+	Tokens []Token
+
+	// ApiKey is a single key in plain text, accepted as a bearer token or in
+	// the deprecated X-Api-Key header. Superseded by Tokens.
 	ApiKey    string
 	JwtSecret string
 	JwtID     string
@@ -32,6 +38,9 @@ const contextKeyUser ContextKey = "user"
 //   - If the request is not authorized, it returns a 401 Unauthorized response.
 //   - If the request is authorized, it calls the next handler.
 //
+// A bearer token whose SHA-256 hash is one of config.Tokens is accepted first,
+// and the request carries the name of that token as its user.
+//
 // The API key is accepted in two places: as a static bearer token,
 // "Authorization: Bearer <key>", which is the preferred form, and in the
 // X-Api-Key header, which is deprecated and kept for existing clients. A
@@ -44,6 +53,17 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 
+			if len(config.Tokens) > 0 {
+				if token, ok := bearerToken(r); ok {
+					if name, ok := matchToken(config.Tokens, token); ok {
+						recordCaller(r.Context(), name)
+						ctx := context.WithValue(r.Context(), contextKeyUser, name)
+						h.ServeHTTP(w, r.WithContext(ctx))
+						return
+					}
+				}
+			}
+
 			if len(config.ApiKey) > 0 {
 				viaHeader := false
 				ok := checkBearerKey(r, config.ApiKey)
@@ -52,6 +72,7 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 					viaHeader = ok
 				}
 				if ok {
+					recordCaller(r.Context(), "apikey")
 					if viaHeader {
 						if client := clientHost(r); warned.add(client) {
 							LoggerFrom(r.Context()).Warn("X-Api-Key is deprecated, send the key as Authorization: Bearer",
@@ -67,6 +88,7 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 
 			if len(config.JwtSecret) > 0 && len(config.JwtID) > 0 {
 				if claims, ok := checkJwtToken(r, config); ok {
+					recordCaller(r.Context(), claims.User)
 					// update authenticated user in context and pass it to the next handler
 					ctx := context.WithValue(r.Context(), contextKeyUser, claims.User)
 					h.ServeHTTP(w, r.WithContext(ctx))
