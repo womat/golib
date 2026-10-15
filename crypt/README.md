@@ -1,5 +1,11 @@
 # crypt
 
+> **Deprecated.** No service imports `crypt` any more, and the compiled-in key
+> (see [Security model](#security-model)) cannot be fixed without breaking the
+> API. Use `golang.org/x/crypto/bcrypt` directly, `crypto/cipher` (AES-GCM) with a
+> key of your own, and `ssh-keygen -t ed25519` for key files. This package is
+> removed in v2.
+
 Four unrelated pieces of applied cryptography that services in this ecosystem
 kept needing: bcrypt password hashing, AES-256-GCM symmetric encryption, an
 `EncryptedString` that survives a round trip through YAML or JSON without ever

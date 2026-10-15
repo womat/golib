@@ -120,7 +120,8 @@ starting a new service in this ecosystem, copy this structure.
 **Support packages.** `xlog` wraps `slog` with destination (`stdout`/`stderr`/`null`/file)
 and level selection, returning a wrapper whose `Close()` releases the file handle.
 `keyvalue.Record` is a `map[string]any` with converting typed accessors — **deprecated** since
-v1.5.1, it lives on as `github.com/womat/keyvalue`; no service imports it any more, and v2 drops it. `crypt` provides
+v1.5.1, it lives on as `github.com/womat/keyvalue`; no service imports it any more, and v2 drops it. `crypt` — **deprecated** since
+v1.5.2, no service imports it, v2 drops it — provides
 bcrypt hashing, AES-256 symmetric encryption, Ed25519 key-file generation, and
 `EncryptedString`, which marshals as ciphertext so plaintext never lands in YAML/JSON or
 logs. **`crypt` ships a compiled-in, public default AES key, and `EncryptedString` cannot
@@ -128,7 +129,8 @@ be moved off it** — `SetKey` is a method on `SymCrypt`, and it pads a short ke
 prefix of that same default. Treat `EncryptedString` as protection against accidental
 disclosure only; `crypt/README.md` has the full security model, and the code is
 deliberately frozen (see the *Not addressed* section there). `jwt_util` mints and validates
-HS256 tokens and is what `web.WithAuth` delegates to — deprecated with JWT auth. `mqtt` is a thread-safe Paho wrapper
+HS256 tokens and is what `web.WithAuth` delegates to — deprecated with JWT auth. All breaking changes
+wait for v2 and are listed in README.md, *Planned for v2*. `mqtt` is a thread-safe Paho wrapper
 with reconnect handling.
 
 ## Conventions

@@ -24,7 +24,7 @@ Requires Go 1.27 or later.
 | [`manchester/decoder`](manchester/README.md) | Manchester decoder for any bit rate: recovers and follows the sender's clock, with tolerance handling |
 | [`web`](web/README.md) | Composable `http.Handler` middleware: auth with hashed bearer tokens, CORS, IP filter, logging, JSON helpers |
 | [`jwt_util`](jwt_util/README.md) | Generation and validation of signed JWTs with issuer/subject/ID checks — **deprecated** with the JWT auth in `web` (use bearer tokens), removed in v2 |
-| [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` |
+| [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` — **deprecated** (compiled-in key, no service uses it), removed in v2 |
 | [`xlog`](xlog/README.md) | `log/slog` wrapper with destination and level selection |
 | [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling |
 | [`keyvalue`](keyvalue/README.md) | **Deprecated**, moved to [github.com/womat/keyvalue](https://github.com/womat/keyvalue); removed in v2 |
@@ -207,6 +207,19 @@ versions: this library supports one.
 The actions are pinned to a commit SHA with the release in a comment, so a moved
 tag cannot change what runs; `.github/dependabot.yml` proposes updates for them
 and for the Go modules of all six modules every week.
+
+## Planned for v2
+
+v2 changes the module path to `github.com/womat/golib/v2`, so every import changes
+anyway; breaking changes wait for it and are collected here. Until then, each item
+is marked `// Deprecated:` in v1 and keeps working.
+
+- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)) and `crypt`
+- `web`: remove `Config.ApiKey`, `Config.JwtSecret`, `Config.JwtID` and the `X-Api-Key` header; `Config.Tokens` is the only authentication
+- `demo/demo_app` moves to `Tokens`
+- split a package into its own module (`<pkg>/go.mod`, tags `<pkg>/vX.Y.Z`) only if it needs a version of its own by then
+
+v2 is not released for this list alone; it comes with the first change that has to break the API.
 
 ## Tagging a new version
 

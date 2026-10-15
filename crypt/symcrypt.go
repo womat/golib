@@ -13,6 +13,11 @@
 // model" section of README.md before relying on any of it, including what
 // SetKey does with a key that is not exactly 32 bytes.
 //
+// Deprecated: no service imports crypt any more, and its compiled-in key cannot
+// be fixed without breaking the API. Use golang.org/x/crypto/bcrypt directly,
+// crypto/cipher (AES-GCM) with a key of your own, and ssh-keygen -t ed25519 for
+// key files. It is removed from golib in v2.
+//
 // # Example usage
 //
 //	func main() {
