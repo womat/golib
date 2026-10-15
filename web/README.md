@@ -31,6 +31,7 @@ both sections before putting this on a public interface.
 | `func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler` | one entry per request: method, path, status, size, duration; level follows the status |
 | `func WithBodyLogging(maxBytes int) LogOption` | additionally log request and response body, truncated, textual types only |
 | `func WithLogLevel(level slog.Level) LogOption` | write every entry at one level instead of following the status |
+| `func WithSuccessLevel(level slog.Level) LogOption` | level for responses below 400, e.g. `Debug` for a polled service; from 400 the status still decides |
 | `func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context` | put a logger where `WriteError` and `WithIPFilter` find it |
 | `func LoggerFrom(ctx context.Context) *slog.Logger` | that logger, or `slog.Default()` when there is none |
 | `func Encode[T any](w http.ResponseWriter, status int, v T)` | JSON response; a marshal failure still yields valid JSON and a 500 |
@@ -177,7 +178,11 @@ size, duration. **The level follows the response status** — `Error` from 500,
 `Warn` from 400, `Info` below — so the access log is visible at the level a
 service actually runs at. It used to be `Debug` throughout, which meant no
 access log at all in production; `WithLogLevel(slog.LevelDebug)` restores that
-if it was what you wanted. **Bodies are not logged** unless `WithBodyLogging` asks
+if it was what you wanted. A service that is polled every few seconds can put
+only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
+rejected ones visible as warnings. Every entry names the client
+(`request.client`) and, once `WithAuth` accepted the request, the caller
+(`user`). **Bodies are not logged** unless `WithBodyLogging` asks
 for it, and then only up to its byte limit and only for `application/json`,
 `application/xml` and `text/*` — a body carries passwords and tokens, and a log
 file is the wrong place for them.

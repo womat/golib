@@ -202,6 +202,32 @@ func TestWithLogLevelPinsTheLevel(t *testing.T) {
 	}
 }
 
+func TestWithSuccessLevel(t *testing.T) {
+	for status, want := range map[int]string{
+		http.StatusOK:                  "level=DEBUG",
+		http.StatusNotModified:         "level=DEBUG",
+		http.StatusUnauthorized:        "level=WARN",
+		http.StatusInternalServerError: "level=ERROR",
+	} {
+		logger, buf := testLogger()
+		WithLogging(echoHandler(status, "application/json"), logger, WithSuccessLevel(slog.LevelDebug)).
+			ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("status %d: want %s in\n%s", status, want, buf)
+		}
+	}
+
+	// WithLogLevel wins.
+	logger, buf := testLogger()
+	WithLogging(echoHandler(http.StatusUnauthorized, "application/json"), logger,
+		WithSuccessLevel(slog.LevelDebug), WithLogLevel(slog.LevelInfo)).
+		ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if !strings.Contains(buf.String(), "level=INFO") {
+		t.Errorf("WithLogLevel did not take precedence:\n%s", buf)
+	}
+}
+
 // TestWithLoggingNilLoggerDoesNotPanic covers the case that used to panic on
 // the first request rather than when the middleware was built.
 func TestWithLoggingNilLoggerDoesNotPanic(t *testing.T) {

@@ -19,6 +19,7 @@ type LogOption func(*logConfig)
 type logConfig struct {
 	bodyLimit int         // 0 disables body logging
 	level     *slog.Level // nil follows the status code
+	success   *slog.Level // level below status 400; nil means Info
 }
 
 // WithBodyLogging adds the request and response body to the log entry, cut off
@@ -46,6 +47,19 @@ func WithLogLevel(level slog.Level) LogOption {
 	}
 }
 
+// WithSuccessLevel writes entries for responses below 400 at the given level;
+// from 400 on the status still decides (Warn, from 500 Error).
+//
+// For a service that is polled - a web page asking every few seconds -
+// slog.LevelDebug keeps the successful requests out of the normal log while a
+// rejected one, with its client, still shows as a warning. WithLogLevel takes
+// precedence over it.
+func WithSuccessLevel(level slog.Level) LogOption {
+	return func(c *logConfig) {
+		c.success = &level
+	}
+}
+
 // levelFor reports the level one entry is written at: the configured one, or
 // else the one the status code calls for.
 func (c logConfig) levelFor(status int) slog.Level {
@@ -58,6 +72,8 @@ func (c logConfig) levelFor(status int) slog.Level {
 		return slog.LevelError
 	case status >= http.StatusBadRequest:
 		return slog.LevelWarn
+	case c.success != nil:
+		return *c.success
 	default:
 		return slog.LevelInfo
 	}
