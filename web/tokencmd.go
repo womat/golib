@@ -41,6 +41,10 @@ type TokenCommand struct {
 	// TokenFile returns the path of the token file configured in the config
 	// file at configPath, or "" if none is configured.
 	TokenFile func(configPath string) (string, error)
+	// Apply tells the user how a change takes effect; "Restart <App> to
+	// apply." if empty. A service that rereads its token file on SIGHUP says
+	// so here, e.g. "Apply with: systemctl reload tadl".
+	Apply string
 	// Stdout receives the token and the list of names; os.Stdout if nil.
 	Stdout io.Writer
 	// Stderr receives everything else; os.Stderr if nil.
@@ -117,9 +121,9 @@ func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryR
 		if stdout.err != nil {
 			return fail(stdout.err)
 		}
-		stderr.printf("\nDry run, nothing written. Add this line to the token file, then restart %s:\n  %s %s\n"+
+		stderr.printf("\nDry run, nothing written. Add this line to the token file:\n  %s %s\n%s\n"+
 			"The token above is shown only now; store it with the caller.\n",
-			c.App, name, hex.EncodeToString(hash[:]))
+			name, hex.EncodeToString(hash[:]), c.apply())
 		return 0
 	}
 
@@ -146,8 +150,8 @@ func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryR
 		return fail(fmt.Errorf("%q was added to %s, but the token could not be printed (%w); "+
 			"remove it with: %s token remove %s", name, path, stdout.err, c.App, name))
 	}
-	stderr.printf("\nAdded %q to %s. Restart %s to apply.\n"+
-		"The token above is shown only now; store it with the caller.\n", name, path, c.App)
+	stderr.printf("\nAdded %q to %s. %s\n"+
+		"The token above is shown only now; store it with the caller.\n", name, path, c.apply())
 	return 0
 }
 
@@ -174,7 +178,7 @@ func (c TokenCommand) remove(stderr *printer, configPath, name string, dryRun bo
 	if err := RemoveTokenFromFile(path, name); err != nil {
 		return fail(err)
 	}
-	stderr.printf("Removed %q from %s. Restart %s to apply.\n", name, path, c.App)
+	stderr.printf("Removed %q from %s. %s\n", name, path, c.apply())
 	return 0
 }
 
@@ -200,6 +204,14 @@ func (c TokenCommand) list(stdout, stderr *printer, configPath string, fail func
 		return fail(stdout.err)
 	}
 	return 0
+}
+
+// apply returns the hint how a change takes effect.
+func (c TokenCommand) apply() string {
+	if c.Apply != "" {
+		return c.Apply
+	}
+	return "Restart " + c.App + " to apply."
 }
 
 // tokenFile asks the service for the token file named in its config.

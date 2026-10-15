@@ -50,8 +50,22 @@ func TestTokenCommandAddListRemove(t *testing.T) {
 	if len(tokens) != 1 || tokens[0].Name != "nodered" || tokens[0].Hash != HashToken(token) {
 		t.Fatalf("file holds %+v, token %q", tokens, token)
 	}
-	if !strings.Contains(stderr.String(), "Restart demo") {
+	if !strings.Contains(stderr.String(), "Restart demo to apply.") {
 		t.Errorf("stderr does not ask for a restart: %s", stderr)
+	}
+
+	stderr.Reset()
+	cmd.Apply = "Apply with: systemctl reload demo"
+	if code := cmd.Run([]string{"remove", "nodered", "-dry-run"}); code != 0 ||
+		strings.Contains(stderr.String(), "systemctl") {
+		t.Errorf("dry-run remove: exit %d, stderr %s", code, stderr)
+	}
+	if code := cmd.Run([]string{"add", "other"}); code != 0 || !strings.Contains(stderr.String(), "systemctl reload demo") {
+		t.Errorf("Apply not used: exit %d, stderr %s", code, stderr)
+	}
+	cmd.Apply = ""
+	if code := cmd.Run([]string{"remove", "other"}); code != 0 {
+		t.Fatalf("remove other: exit %d", code)
 	}
 
 	stdout.Reset()
