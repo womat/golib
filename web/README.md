@@ -54,7 +54,7 @@ A service accepts one bearer token per caller and stores only its SHA-256
 hash, in a token file next to its config:
 
 ```
-# /opt/<app>/etc/tokens — one "<name> <sha256>" per line
+# /opt/<app>/etc/token-hashes — one "<name> <sha256>" per line
 nodered 3f2a…c91e
 grafana 8b04…d7a2
 ```

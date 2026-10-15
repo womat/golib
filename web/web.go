@@ -24,7 +24,7 @@
 //
 //	func main() {
 //	    logger := slog.Default()
-//	    tokens, err := web.ReadTokenFile("/opt/demo/etc/tokens")
+//	    tokens, err := web.ReadTokenFile("/opt/demo/etc/token-hashes")
 //	    if err != nil {
 //	        log.Fatal(err)
 //	    }

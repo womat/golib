@@ -115,7 +115,7 @@ func TestMatchToken(t *testing.T) {
 }
 
 func TestAddAndRemoveTokenKeepComments(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 	start := "# keep me\nnodered " + hashHex("one") // no trailing newline
 	if err := os.WriteFile(path, []byte(start), 0o600); err != nil {
 		t.Fatal(err)
@@ -163,7 +163,7 @@ func TestAddAndRemoveTokenKeepComments(t *testing.T) {
 }
 
 func TestAddTokenCreatesFileWithMode0640(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 
 	if err := AddTokenToFile(path, "nodered", HashToken("one")); err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestAddTokenCreatesFileWithMode0640(t *testing.T) {
 }
 
 func TestAddTokenRefusesBrokenFileAndBadName(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 	if err := os.WriteFile(path, []byte("broken\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}

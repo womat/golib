@@ -34,7 +34,7 @@ func tokenCmd(t *testing.T, tokenFile string) (TokenCommand, string, *bytes.Buff
 }
 
 func TestTokenCommandAddListRemove(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 	cmd, _, stdout, stderr := tokenCmd(t, path)
 
 	if code := cmd.Run([]string{"add", "nodered"}); code != 0 {
@@ -88,7 +88,7 @@ func TestTokenCommandAddListRemove(t *testing.T) {
 // TestTokenCommandFlagsAnywhere: -config and -dry-run work before, between
 // and after the positional arguments.
 func TestTokenCommandFlagsAnywhere(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 	cmd, config, _, _ := tokenCmd(t, path)
 	cmd.DefaultConfig = "/nonexistent/config.yaml"
 
@@ -107,7 +107,7 @@ func TestTokenCommandFlagsAnywhere(t *testing.T) {
 }
 
 func TestTokenCommandDryRunWritesNothing(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "tokens")
+	path := filepath.Join(t.TempDir(), "token-hashes")
 	cmd, _, stdout, stderr := tokenCmd(t, path)
 
 	if code := cmd.Run([]string{"add", "nodered", "-dry-run"}); code != 0 {
@@ -141,7 +141,7 @@ func TestTokenCommandDryRunWritesNothing(t *testing.T) {
 func TestTokenCommandShowsNoTokenWhenItCannotWrite(t *testing.T) {
 	for name, tokenFile := range map[string]string{
 		"no token file configured": "",
-		"directory does not exist": filepath.Join(t.TempDir(), "missing", "tokens"),
+		"directory does not exist": filepath.Join(t.TempDir(), "missing", "token-hashes"),
 	} {
 		t.Run(name, func(t *testing.T) {
 			cmd, _, stdout, stderr := tokenCmd(t, tokenFile)
@@ -160,7 +160,7 @@ func TestTokenCommandShowsNoTokenWhenItCannotWrite(t *testing.T) {
 }
 
 func TestTokenCommandUsage(t *testing.T) {
-	cmd, _, _, _ := tokenCmd(t, filepath.Join(t.TempDir(), "tokens"))
+	cmd, _, _, _ := tokenCmd(t, filepath.Join(t.TempDir(), "token-hashes"))
 
 	for _, args := range [][]string{nil, {"add"}, {"list", "x"}, {"rotate", "x"}, {"add", "x", "-unknown"}} {
 		if code := cmd.Run(args); code != 2 {
@@ -173,7 +173,7 @@ func TestTokenCommandUsage(t *testing.T) {
 }
 
 func TestTokenCommandListWithoutFile(t *testing.T) {
-	cmd, _, stdout, stderr := tokenCmd(t, filepath.Join(t.TempDir(), "tokens"))
+	cmd, _, stdout, stderr := tokenCmd(t, filepath.Join(t.TempDir(), "token-hashes"))
 
 	if code := cmd.Run([]string{"list"}); code != 0 {
 		t.Errorf("exit %d", code)
