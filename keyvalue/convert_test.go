@@ -47,7 +47,7 @@ func TestIntConversionOutOfRange(t *testing.T) {
 func TestIntNarrowingOnSmallPlatforms(t *testing.T) {
 	// A variable, not a constant: int(const) is evaluated at compile time and
 	// would fail the 32-bit build even in the branch that never runs there.
-	var tooBigFor32Bit int64 = 4306644447701 // a phone number, as it happens
+	var tooBigFor32Bit int64 = 4301234567890
 
 	r := Record{"v": tooBigFor32Bit}
 
@@ -65,7 +65,7 @@ func TestIntNarrowingOnSmallPlatforms(t *testing.T) {
 	default:
 		if got != 0 {
 			t.Errorf("Int() = %d, want 0: the value does not fit a %d-bit int, "+
-				"and a silently truncated phone number is worse than none", got, strconv.IntSize)
+				"and a silently truncated number is worse than none", got, strconv.IntSize)
 		}
 	}
 }
@@ -244,7 +244,7 @@ func TestBoolIsNonZero(t *testing.T) {
 		{"string two", "2", true},
 		{"string negative", "-1", true},
 		{"string fraction", "0.5", true},
-		{"string with sign", "+4306644447701", true},
+		{"string with sign", "+4301234567890", true},
 		{"string not a number", "NaN", false},
 		{"string non numeric", "a", false},
 		{"empty string", "", false},

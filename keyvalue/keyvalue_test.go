@@ -14,7 +14,7 @@ var myTestRecord = Record{
 	"stringa":     "a",
 	"string1":     "1",
 	"string0":     "0",
-	"stringPhone": "+4306644447701",
+	"stringLong":  "+4301234567890",
 	"StringHuge":  "1234567890123456.0",
 	"StringSmall": "0.00000012345678",
 	"int2134":     2134,
@@ -28,7 +28,7 @@ var myTestRecord = Record{
 	"float1.0":    1.0,
 	"float-1.0":   -1.0,
 	"float0.1":    0.1,
-	"floatPhone":  4306644447701.0,
+	"floatLong":   4301234567890.0,
 	"floatHuge":   1234567890123456.0,
 	"floatSmall":  0.00000012345678,
 }
@@ -42,7 +42,7 @@ func Test_Bool(t *testing.T) {
 		"stringa":     false,
 		"string1":     true,
 		"string0":     false,
-		"stringPhone": true,
+		"stringLong":  true,
 		"int2134":     true,
 		"float3.14":   true,
 		"boolTrue":    true,
@@ -54,7 +54,7 @@ func Test_Bool(t *testing.T) {
 		"float1.0":    true,
 		"float-1.0":   true,
 		"float0.1":    true,
-		"floatPhone":  true,
+		"floatLong":   true,
 		"StringHuge":  true,
 		"StringSmall": true,
 		"floatHuge":   true,
@@ -77,7 +77,7 @@ func Test_String(t *testing.T) {
 		"stringa":     "a",
 		"string1":     "1",
 		"string0":     "0",
-		"stringPhone": "+4306644447701",
+		"stringLong":  "+4301234567890",
 		"int2134":     "2134",
 		"float3.14":   "3.14",
 		"boolTrue":    "true",
@@ -89,7 +89,7 @@ func Test_String(t *testing.T) {
 		"float1.0":    "1",
 		"float-1.0":   "-1",
 		"float0.1":    "0.1",
-		"floatPhone":  "4306644447701",
+		"floatLong":   "4301234567890",
 		"floatHuge":   "1234567890123456",
 		"floatSmall":  "0.00000012345678",
 		"StringHuge":  "1234567890123456.0",
@@ -113,7 +113,7 @@ func Test_Int(t *testing.T) {
 
 	// Typed as int, not interface{}: an untyped constant that exceeds a 32-bit
 	// int fails to compile for GOARCH=arm, one of this repository's targets.
-	// The two phone numbers below therefore live outside this map.
+	// The two 13-digit values below therefore live outside this map.
 	expectedConverted := map[string]int{
 		"":            0,
 		"emptyString": 0,
@@ -143,16 +143,16 @@ func Test_Int(t *testing.T) {
 		}
 	}
 
-	// A phone number does not fit a 32-bit int. Where it does not, Int reports
+	// A 13-digit number does not fit a 32-bit int. Where it does not, Int reports
 	// 0 rather than a truncated number; see TestIntNarrowingOnSmallPlatforms.
-	var phone int64 = 4306644447701
+	var long int64 = 4301234567890
 
 	want := 0
 	if strconv.IntSize == 64 {
-		want = int(phone)
+		want = int(long)
 	}
 
-	for _, key := range []string{"stringPhone", "floatPhone"} {
+	for _, key := range []string{"stringLong", "floatLong"} {
 		if x := myTestRecord.Int(key); x != want {
 			t.Errorf("unexpected (converted) input = %v, output = %v, want %v", key, x, want)
 		}
@@ -178,7 +178,7 @@ func Test_Int64(t *testing.T) {
 		"stringa":     int64Zero,
 		"string1":     int64(1),
 		"string0":     int64Zero,
-		"stringPhone": int64(4306644447701),
+		"stringLong":  int64(4301234567890),
 		"int2134":     int64(2134),
 		"float3.14":   int64(3),
 		"boolTrue":    int64(1),
@@ -190,7 +190,7 @@ func Test_Int64(t *testing.T) {
 		"float1.0":    int64(1),
 		"float-1.0":   int64(-1),
 		"float0.1":    int64Zero,
-		"floatPhone":  int64(4306644447701),
+		"floatLong":   int64(4301234567890),
 		"StringHuge":  int64Zero, // ParseInt rejects "1234567890123456.0"
 		"StringSmall": int64Zero,
 		"floatHuge":   int64(1234567890123456),
@@ -212,7 +212,7 @@ func Test_Float(t *testing.T) {
 		"stringa":     float64Zero,
 		"string1":     1.0,
 		"string0":     float64Zero,
-		"stringPhone": 4306644447701.0,
+		"stringLong":  4301234567890.0,
 		"StringHuge":  1234567890123456.0,
 		"StringSmall": 0.00000012345678,
 		"int2134":     2134.0,
@@ -226,7 +226,7 @@ func Test_Float(t *testing.T) {
 		"float1.0":    1.0,
 		"float-1.0":   -1.0,
 		"float0.1":    0.1,
-		"floatPhone":  4306644447701.0,
+		"floatLong":   4301234567890.0,
 		"floatHuge":   1234567890123456.0,
 		"floatSmall":  0.00000012345678,
 	}
