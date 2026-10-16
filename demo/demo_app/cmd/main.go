@@ -26,6 +26,12 @@ import (
 //go:embed README.md
 var Readme string
 
+// exitConfig is the exit code for a config file that does not load or validate (EX_CONFIG from
+// sysexits.h). The unit sets RestartPreventExitStatus=78: restarting cannot fix the file, so
+// systemd leaves demo_app stopped and "systemctl status demo_app" shows why, instead of
+// restarting it every few seconds.
+const exitConfig = 78
+
 // buildDate and buildCommit are injected at build time via -ldflags
 var (
 	buildDate   = "dev"
@@ -98,7 +104,7 @@ func run(configFile string, debug bool) int {
 		config, err := loadConfig(configFile, debug)
 		if err != nil {
 			fmt.Printf("Failed to load config file %s: %s\n", configFile, err.Error())
-			return 1
+			return exitConfig
 		}
 
 		// Close previous logger if exists
@@ -107,7 +113,7 @@ func run(configFile string, debug bool) int {
 		// Initialize logger
 		if logger, err = xlog.Init(config.LogDestination, config.LogLevel); err != nil {
 			fmt.Printf("Failed to initialize logger: %s\n", err.Error())
-			return 1
+			return exitConfig
 		}
 
 		slog.SetDefault(logger.Logger)

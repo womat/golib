@@ -250,6 +250,7 @@ ExecStart=/opt/demo_app/bin/demo_app
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
+RestartPreventExitStatus=78
 
 [Install]
 WantedBy=multi-user.target
@@ -260,6 +261,11 @@ sudo systemctl enable demo_app
 sudo systemctl start demo_app
 sudo systemctl status demo_app
 ```
+
+A config file that does not load or validate ends `demo_app` with exit code 78
+(`EX_CONFIG`), on start as on `systemctl reload`. `RestartPreventExitStatus=78`
+keeps systemd from restarting it every few seconds until the file is fixed;
+`systemctl status demo_app` shows why it stopped.
 
 ### 4. View logs
 

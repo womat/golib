@@ -95,9 +95,10 @@ token file (`webserver.tokenFile`, relative to the config file) with the `demo_a
 subcommand, an `App` struct owning the wait group, HTTP server, context and restart/shutdown
 channels (`app/app.go`), signal-driven graceful shutdown and config reload on `SIGHUP` (which
 rereads the token file), and version/build metadata injected via `-ldflags`. Swagger is compiled
-in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`). When starting
-a new service in this ecosystem, copy this structure. Unlike the services, it still exits with 1,
-not 78, on an invalid config.
+in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`). A config that does not load or validate, or names a log
+destination that cannot be opened, ends it with exit code 78 (`EX_CONFIG`), which the unit in its
+README keeps systemd from restarting. When starting a new service in this ecosystem, copy this
+structure.
 
 ## Conventions
 
