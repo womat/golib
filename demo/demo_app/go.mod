@@ -5,7 +5,7 @@ go 1.27
 require (
 	github.com/swaggo/http-swagger v1.3.4
 	github.com/swaggo/swag v1.16.6
-	github.com/womat/golib v1.0.4
+	github.com/womat/golib/v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 
@@ -21,7 +21,6 @@ require (
 	github.com/go-openapi/swag/stringutils v0.25.5 // indirect
 	github.com/go-openapi/swag/typeutils v0.25.5 // indirect
 	github.com/go-openapi/swag/yamlutils v0.25.5 // indirect
-	github.com/golang-jwt/jwt/v5 v5.3.1 // indirect
 	github.com/stretchr/testify v1.9.0 // indirect
 	github.com/swaggo/files v1.0.1 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
@@ -31,4 +30,4 @@ require (
 	golang.org/x/tools v0.49.0 // indirect
 )
 
-replace github.com/womat/golib => ../..
+replace github.com/womat/golib/v2 => ../..

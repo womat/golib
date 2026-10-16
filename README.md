@@ -1,158 +1,129 @@
 # golib
 
 [![CI](https://github.com/womat/golib/actions/workflows/ci.yml/badge.svg)](https://github.com/womat/golib/actions/workflows/ci.yml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/womat/golib/v2.svg)](https://pkg.go.dev/github.com/womat/golib/v2)
 
-`golib` contains all shareable Go packages of womat.
+`golib` is the shared groundwork of womat's small HTTPS services: HTTP
+middleware with bearer-token authentication, logging, and a service template to
+copy. Plain standard-library Go, no dependencies outside it.
 
-The library targets small Linux services and Raspberry Pi applications: GPIO
-access, Manchester line coding, HTTP middleware, logging, MQTT, crypto and
-configuration helpers. Everything is plain standard-library Go with a handful of
-well-known dependencies.
+    go get github.com/womat/golib/v2
 
-    go get github.com/womat/golib
-
-Requires Go 1.27 or later.
+Requires Go 1.27 or later. Builds on Linux, macOS and Windows; the services it
+was written for run on a Raspberry Pi.
 
 ## Packages
 
 | Package | Purpose |
 |---|---|
-| [`gpio`](gpio/README.md) | Backend-agnostic `Pin` interface: levels, modes, pull resistors, edge events — **deprecated**, moved to [github.com/womat/gpio](https://github.com/womat/gpio); removed in v2 |
-| [`gpio/rpi`](gpio/README.md) | Linux implementation using the GPIO character device (`go-gpiocdev`) — **Linux only**, **deprecated** like `gpio` |
-| [`gpio/rpiemu`](gpio/README.md) | In-memory GPIO emulator for tests and development without hardware — **deprecated** like `gpio` |
-| [`manchester/encoder`](manchester/README.md) | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending — **deprecated**, moved to [github.com/womat/manchester](https://github.com/womat/manchester); removed in v2 |
-| [`manchester/decoder`](manchester/README.md) | Manchester decoder for any bit rate: recovers and follows the sender's clock, with tolerance handling — **deprecated** like `encoder` |
-| [`web`](web/README.md) | Composable `http.Handler` middleware: auth with hashed bearer tokens, CORS, IP filter, logging, JSON helpers |
-| [`jwt_util`](jwt_util/README.md) | Generation and validation of signed JWTs with issuer/subject/ID checks — **deprecated** with the JWT auth in `web` (use bearer tokens), removed in v2 |
-| [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` — **deprecated** (compiled-in key, no service uses it), removed in v2 |
+| [`web`](web/README.md) | Composable `http.Handler` middleware: auth with hashed bearer tokens from a token file, the `token add/remove/list` subcommand, CORS, IP filter, access logging, JSON helpers |
 | [`xlog`](xlog/README.md) | `log/slog` wrapper with destination and level selection |
-| [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling — **deprecated**, moved to [github.com/womat/mqtt](https://github.com/womat/mqtt); removed in v2 |
-| [`keyvalue`](keyvalue/README.md) | **Deprecated**, moved to [github.com/womat/keyvalue](https://github.com/womat/keyvalue); removed in v2 |
 
-Every package carries a doc comment with a runnable `# Example usage` block, so
-`go doc github.com/womat/golib/<pkg>` is the fastest way to get started. Eight
-READMEs cover all of them — `gpio/README.md` covers both GPIO backends and
-`manchester/README.md` covers encoder and decoder together, because neither pair
-is useful apart.
+What used to be here as well lives in modules of its own now:
 
-**Read the package README before putting a package to work.** Each one ends with
-a *Not addressed* section naming what the package deliberately does not do, and
-in the case of [`crypt`](crypt/README.md) that section is the difference between
-a secret being protected and only looking protected.
+| Former package | Now |
+|---|---|
+| `gpio`, `gpio/rpi`, `gpio/rpiemu` | [github.com/womat/gpio](https://github.com/womat/gpio) |
+| `manchester/encoder`, `manchester/decoder` | [github.com/womat/manchester](https://github.com/womat/manchester) |
+| `mqtt` | [github.com/womat/mqtt](https://github.com/womat/mqtt) |
+| `keyvalue` | [github.com/womat/keyvalue](https://github.com/womat/keyvalue) |
+| `crypt`, `jwt_util` | removed, no replacement (see [Changes in v2](#changes-in-v2)) |
+
+Each package carries a doc comment with a runnable `# Example usage` block, so
+`go doc github.com/womat/golib/v2/<pkg>` is the fastest way in. **Read the
+package README before putting it to work** — each one ends with a *Not
+addressed* section naming what the package deliberately does not do.
 
 ## Getting started
 
-Reading a GPIO pin shows the shape most of the library shares — an interface, a
-backend chosen at construction, functional options, and an explicit `Close`:
+A service reads its tokens, wraps a plain `http.ServeMux` and logs through
+`xlog`:
 
 ```go
-pin, err := rpi.NewPin(17,
-    rpi.WithMode(gpio.Input),
-    rpi.WithPullup(gpio.PullUp),
-    rpi.WithDebounce(5*time.Millisecond),
-)
+logger, err := xlog.Init("stdout", "info")
 if err != nil {
     log.Fatal(err)
 }
-defer pin.Close()
+defer logger.Close()
 
-events, err := pin.WatchCh(gpio.RisingEdge | gpio.FallingEdge)
+tokens, err := web.ReadTokenFile("/opt/demo/etc/token-hashes")
 if err != nil {
     log.Fatal(err)
 }
 
-for evt := range events {
-    fmt.Println(evt)
-}
+mux := http.NewServeMux()
+mux.Handle("OPTIONS /", web.HandlePreflight())
+mux.Handle("GET /health", web.WithAuth(handleHealth(), web.Config{Tokens: tokens}))
+
+// The last wrapper is the outermost one, so logging sees every request,
+// rejected ones included.
+handler := web.WithCORS(mux)
+handler = web.WithIPFilter(handler, []string{"192.168.0.0/16"}, nil,
+    web.WithIPFilterLogger(logger.Logger))
+handler = web.WithLogging(handler, logger.Logger)
 ```
 
-Swapping `rpi` for `rpiemu` runs the same code without a Raspberry Pi, which is
-how the tests work. See [`gpio/README.md`](gpio/README.md).
+The tokens themselves are created with the service's own `token` subcommand,
+which `web.TokenCommand` provides; see [`web/README.md`](web/README.md#tokens).
+[`demo/demo_app`](demo/demo_app/README.md) is the complete version of this.
 
 ## Conventions
 
 These hold across the library; the details are in each package's README.
 
-**Interface plus backends.** Where hardware or a transport is involved, the
-abstraction and the implementation are separate packages. Depend on the
-interface (`gpio.Pin`), never on a backend, so a test can substitute one.
+**Functional options.** Configurable constructors take `Option func(*T)` values
+built by `WithX(...)` functions — `web`'s CORS and logging middleware and
+`xlog` follow that shape. New ones should too. Options are applied at
+construction; there are no setters afterwards.
 
-**Functional options.** Configurable constructors take
-`Option func(*T)` values built by `WithX(...)` functions — `encoder`, `decoder`,
-`rpi`, `rpiemu`, `mqtt`, `web`'s CORS and logging middleware, and `xlog` all
-follow that shape. New ones should too. Options are applied at construction;
-there are no setters afterwards.
+**No global logger.** `web.WithLogging` takes the logger as an argument and
+hands it down the request context; nothing reaches for `slog.Default()` on its
+own.
 
-**No global logger.** A package that logs takes a `*slog.Logger` from the
-caller: `mqtt` and `manchester/decoder` through a `WithLogger` option,
-`web.WithLogging` as a positional argument. `manchester/encoder` has no logger
-at all and reports transmission errors through `WithErrorHandler`. Nothing
-reaches for `slog.Default()` on its own.
+**Every resource-owning type has a `Close`.** `xlog.LoggerWrapper` must be
+closed by the caller, and `defer` right after construction is the intended
+style.
 
-**Every resource-owning type has a `Close`.** `Pin`, `Encoder`, `Decoder`,
-`LoggerWrapper` and mqtt's `Handler` (as `Disconnect`) must be closed by the
-caller, and `defer` right after construction is the intended style.
-
-**Sentinel errors are exported package vars.** `ErrInvalidLevel`,
-`ErrUnauthorized`, `ErrNotConnected` and so on, compared with `errors.Is`. In
-`gpio` and `mqtt` the message carries the package name as a prefix; in `web`,
-`jwt_util` and `manchester/encoder` it does not, because those texts can reach a
-client.
+**Sentinel errors are exported package vars** (`ErrUnauthorized`,
+`ErrTokenExists`, …), compared with `errors.Is`. In `web` they carry no package
+prefix, because those texts reach a client.
 
 **No package changes its own module state.** The library has no `init`
 functions that open files, start goroutines or read the environment.
 
-## Demos
+## demo_app
 
-Each directory under `demo/` is a standalone Go module with a `replace`
-directive pointing at this working copy, so demos always build against the local
-library:
+[`demo/demo_app`](demo/demo_app/README.md) is a **template for new services**,
+not just a sample: YAML configuration with defaults and environment expansion,
+bearer tokens from a token file with a `token` subcommand, graceful shutdown and
+config reload on `SIGHUP`, build metadata injected through `-ldflags`, and a
+Swagger UI that is compiled in only with `-tags swagger`, so production binaries
+carry no documentation endpoint. Copy it when starting a service in this
+ecosystem — and read its README first; it is not operated anywhere, and its
+development certificate is generated, not real.
 
-| Demo | Shows |
-|---|---|
-| `blinker` | Minimal GPIO output |
-| `listener` | Watching GPIO edge events |
-| `manchester_sender` | Manchester transmission over a GPIO pin |
-| `manchester_listener` | Manchester reception and decoding |
-| [`demo_app`](demo/demo_app/README.md) | Full service skeleton: config, HTTPS, auth, health, Swagger |
-
-Build and deploy from inside a demo directory; every demo ships a `Makefile`
-that cross-compiles for the Raspberry Pi and can scp the binary to a target
-host:
+It is a standalone Go module with a `replace` directive pointing at this working
+copy. Build and deploy from inside its directory; its `Makefile`
+cross-compiles for the Raspberry Pi and can scp the binary to a target host:
 
     cd demo/demo_app
     make help          # list all targets
     make build_arm64   # cross-compile for a 64-bit Pi
     make deploy        # build and copy to $(PI_USER)@$(PI_HOST)
 
-Adjust `PI_USER`, `PI_HOST` and `PI_PATH` in the `Makefile` before deploying.
-
-`demo_app` is meant as a **template for new services**, not just a sample: YAML
-configuration with defaults and environment expansion, graceful shutdown and
-config reload on OS signals, build metadata injected through `-ldflags`, and a
-Swagger UI that is compiled in only with `-tags swagger`, so production binaries
-carry no documentation endpoint. Copy it when starting a service in this
-ecosystem — and read [its README](demo/demo_app/README.md) first; it is not
-operated anywhere, and its dev certificate is in the repository on purpose.
+The demos for GPIO and Manchester coding moved with their packages to
+[womat/gpio](https://github.com/womat/gpio) and
+[womat/manchester](https://github.com/womat/manchester).
 
 ## Development
 
     go build ./...
     go vet ./...
-    go test ./...
-    go test ./crypt/... -run TestAES -v
+    go test -race ./...
 
-`gpio/rpi` depends on the Linux GPIO character device and therefore does not
-build on macOS or Windows; `go build ./...` and `go test ./...` fail there for
-that package alone. Cover it with a cross-target check, which is worth running
-before committing anything under `gpio/`:
-
-    GOOS=linux go vet ./...
-
-The demos are separate modules and are not covered by any of the above. Build
-them from inside their own directory. `demo/demo_app` additionally needs its
-development certificate generated first, because `app/webservices.go` embeds it
-and `app/certs/` is deliberately not committed:
+`demo/demo_app` is a separate module and is not covered by the above. It also
+needs its development certificate generated first, because
+`app/webservices.go` embeds it and `app/certs/` is deliberately not committed:
 
     cd demo/demo_app
     make ensure_dev_certs
@@ -161,70 +132,76 @@ and `app/certs/` is deliberately not committed:
 ### Checking everything at once
 
 `scripts/check.sh` runs `go fix`, `go vet`, `golangci-lint` and `govulncheck`
-over all six modules:
+over both modules, generating `demo_app`'s certificate first:
 
-    scripts/check.sh              # apply fixes, check everything
-    scripts/check.sh --check      # report pending fixes, change nothing
-    scripts/check.sh --skip=vuln  # leave out the step that needs a network
+    scripts/check.sh               # apply fixes, check everything
+    scripts/check.sh --check       # report pending fixes, change nothing
+    scripts/check.sh --skip=vuln   # leave out the step that needs a network
+    scripts/check.sh --goos=linux  # check for the platform that ships
     scripts/check.sh demo/demo_app
-
-It defaults to `GOOS=linux`, which is the only setting under which `gpio/rpi` is
-checked at all — every one of these tools needs full type information, so on
-macOS that one package otherwise aborts the whole run with errors from inside
-`go-gpiocdev` that look like a broken tool. It also visits each module
-separately, because a root-level `./...` never sees the demos, and generates
-`demo_app`'s certificate first.
 
 `golangci-lint` and `govulncheck` are not vendored; the script names the
 `go install` line if one is missing. Linter behaviour is configured in
 [`.golangci.yml`](.golangci.yml), where each exclusion carries the reason it
 exists — `errcheck` against a deferred `Close` is excluded because this
-library's own convention requires that `defer`, and `crypt` is excluded from one
-`staticcheck` finding because that package is deliberately frozen.
+library's own convention requires that `defer`.
 
 ### CI
 
 `.github/workflows/ci.yml` runs on every push to `main` and on every pull
-request. It exists because the checks above cannot be complete on a
-macOS machine: on a Linux runner `gpio/rpi` builds natively and is tested like
-any other package.
+request, on Linux, the platform the services run on.
 
 | Job | Covers |
 |---|---|
-| `format` | `gofmt` over the whole tree, demos included |
+| `format` | `gofmt` over the whole tree, `demo_app` included |
 | `checks` | `scripts/check.sh --check`: pending `go fix` work, `golangci-lint`, `govulncheck` |
 | `library` | `go vet` and `go test -race -cover` |
-| `cross` | the five Linux targets the library can be built for |
-| `demos` | `go vet` and a build of each of the four small demo modules |
+| `cross` | the Raspberry Pi targets, Linux amd64 and 386, Windows, macOS |
 | `demo_app` | certificate, vet, race tests, and the `swagger`-tagged build |
 | `demo_app_cross` | one target per `build_*` recipe in its `Makefile` |
 
 Every job takes its Go version from the `go.mod` of the module it builds, and
-all six modules declare the same one, so the version promised at the top of
-this file is the version that is actually tested. There is no matrix over Go
-versions: this library supports one.
+both modules declare the same one, so the version promised at the top of this
+file is the version that is actually tested.
 
 The actions are pinned to a commit SHA with the release in a comment, so a moved
 tag cannot change what runs; `.github/dependabot.yml` proposes updates for them
-and for the Go modules of all six modules every week.
+and for the Go dependencies of both modules every week.
 
-## Planned for v2
+## Changes in v2
 
-v2 changes the module path to `github.com/womat/golib/v2`, so every import changes
-anyway; breaking changes wait for it and are collected here. Until then, each item
-is marked `// Deprecated:` in v1 and keeps working.
+v2 changes the module path to `github.com/womat/golib/v2` and removes everything
+v1 had marked `// Deprecated:`. v1 stays available at `v1.5.5`; it receives no
+further changes.
 
-- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)), `gpio` with `rpi` and `rpiemu` (lives on as [github.com/womat/gpio](https://github.com/womat/gpio)), `manchester` with `encoder` and `decoder` (lives on as [github.com/womat/manchester](https://github.com/womat/manchester)), `mqtt` (lives on as [github.com/womat/mqtt](https://github.com/womat/mqtt)) and `crypt`
-- `web`: remove `Config.ApiKey`, `Config.JwtSecret`, `Config.JwtID` and the `X-Api-Key` header; `Config.Tokens` is the only authentication
-- `demo/demo_app` moves to `Tokens`
-- split a package into its own module (`<pkg>/go.mod`, tags `<pkg>/vX.Y.Z`) only if it needs a version of its own by then
+To move a service from v1 to v2:
 
-v2 is not released for this list alone; it comes with the first change that has to break the API.
+1. Change the imports from `github.com/womat/golib/<pkg>` to
+   `github.com/womat/golib/v2/<pkg>` and run `go get github.com/womat/golib/v2`.
+2. Replace the packages that moved out with their modules — the import paths
+   change, the APIs do not: `golib/gpio…` → `github.com/womat/gpio…`,
+   `golib/manchester/…` → `github.com/womat/manchester/…`, `golib/mqtt` →
+   `github.com/womat/mqtt` (v1.0.0 or later), `golib/keyvalue` →
+   `github.com/womat/keyvalue`.
+3. `web.Config` has only `Tokens` left: delete `ApiKey`, `JwtSecret`, `JwtID`
+   and `AppName`. Authentication is the token file — create the tokens with
+   the service's `token add` subcommand (`web.TokenCommand`) and point the
+   config at the file with `webserver.tokenFile`. Requests with `X-Api-Key` or
+   a JWT get 401.
+4. `WithCORS` no longer lists `X-Api-Key` in `Access-Control-Allow-Headers`;
+   pass `WithAllowedHeaders` if a client still sends it.
+5. `crypt` and `jwt_util` are gone without a replacement. Neither was in use;
+   `crypt`'s compiled-in AES key made its `EncryptedString` protection against
+   accidental disclosure only, and `jwt_util` existed for the JWT
+   authentication `web` no longer has.
+
+A further split of a package into its own module happens only when it needs a
+version of its own.
 
 ## Tagging a new version
 
-There is one branch, `main`; a version is a tag on it, and tags apply to the
-whole library at once. First fetch all tags and display them:
+There is one branch, `main`; a version is an annotated tag on it, and tags apply
+to the whole library at once. First fetch all tags and display them:
 
     git fetch --tags
     git tag -l
@@ -233,6 +210,9 @@ Then create a new tag:
 
     git tag -a vX.Y.Z -m "Release X.Y.Z"
     git push --tags
+
+A fix for v1 would need a branch from tag `v1.5.5`; there is none, and none is
+planned.
 
 See the [Go module documentation](https://go.dev/doc/modules/managing-source)
 for more information.

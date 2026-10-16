@@ -197,7 +197,6 @@ func TestAddTokenRefusesBrokenFileAndBadName(t *testing.T) {
 func TestWithAuthTokens(t *testing.T) {
 	cfg := Config{
 		Tokens: []Token{{Name: "nodered", Hash: HashToken("the-token")}},
-		ApiKey: "the-api-key",
 	}
 
 	tests := []struct {
@@ -209,7 +208,6 @@ func TestWithAuthTokens(t *testing.T) {
 		{"token", map[string]string{"Authorization": "Bearer the-token"}, http.StatusOK, "nodered"},
 		{"wrong token", map[string]string{"Authorization": "Bearer other"}, http.StatusUnauthorized, ""},
 		{"token in X-Api-Key", map[string]string{"X-Api-Key": "the-token"}, http.StatusUnauthorized, ""},
-		{"api key still works", map[string]string{"Authorization": "Bearer the-api-key"}, http.StatusOK, "apikey"},
 		{"no credentials", nil, http.StatusUnauthorized, ""},
 	}
 

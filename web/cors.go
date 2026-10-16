@@ -9,7 +9,7 @@ import (
 const (
 	defaultAllowedOrigin  = "*"
 	defaultAllowedMethods = "POST, GET, OPTIONS, PUT, PATCH, DELETE"
-	defaultAllowedHeaders = "Content-Type, Authorization, X-Api-Key"
+	defaultAllowedHeaders = "Content-Type, Authorization"
 	defaultMaxAge         = "86400"
 )
 
@@ -26,7 +26,7 @@ type corsConfig struct {
 // WithAllowedOrigins restricts the allowed origins to the given list.
 //
 // Without it, WithCORS answers every origin with "*", which is the historical
-// behaviour and workable for an API guarded by an API key and an IP filter, but
+// behaviour and workable for an API guarded by bearer tokens and an IP filter, but
 // not for one that relies on browser credentials. With a list, the request's
 // Origin header is echoed back only when it is on the list, and "Vary: Origin"
 // is set so that a cache in front cannot hand one origin's response to another.

@@ -3,7 +3,8 @@
 Composable `http.Handler` middleware for the services in this ecosystem, plus
 the JSON helpers they all repeat: authentication with bearer tokens from a
 token file, CORS, an IP filter, request logging, and one uniform error body.
-The API key and JWT authentication are **deprecated** and removed in v2.
+Since v2 the token file is the only authentication: the API key, the
+`X-Api-Key` header and JWTs are gone.
 
 It is middleware, not a framework. Applications assemble a plain
 `http.ServeMux` and wrap it; `demo/demo_app/app/routes.go` is the canonical
@@ -14,8 +15,8 @@ both sections before putting this on a public interface.
 
 | Function | Comment |
 |---|---|
-| `func WithAuth(h http.Handler, config Config) http.Handler` | a bearer token from `Config.Tokens` (checked first, see [Tokens](#tokens)), or (**deprecated**) the API key as `Authorization: Bearer <key>` or via `X-Api-Key` (logged as a warning once per client), or (**deprecated**) a JWT via `Authorization: Bearer`; otherwise 401 with `WWW-Authenticate: Bearer` |
-| `type Config struct{ Tokens []Token; ApiKey, JwtSecret, JwtID, AppName string }` | empty fields disable that mechanism — an empty `Config` rejects everything; `ApiKey`, `JwtSecret` and `JwtID` are **deprecated**, use `Tokens` |
+| `func WithAuth(h http.Handler, config Config) http.Handler` | `Authorization: Bearer <token>` whose hash is in `Config.Tokens`, see [Tokens](#tokens); otherwise 401 with `WWW-Authenticate: Bearer` |
+| `type Config struct{ Tokens []Token }` | the accepted tokens; an empty `Config` rejects everything |
 | `type Token struct{ Name string; Hash [32]byte }` | one accepted bearer token: the name of its caller and the SHA-256 of the token |
 | `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line or a duplicate name is an error |
 | `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
@@ -38,12 +39,12 @@ both sections before putting this on a public interface.
 | `func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error)` | JSON request body, limited to 1 MiB, trailing data refused |
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
-| `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: token name, `apikey`, or the JWT user |
+| `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: the name of the token |
 | `type ContextKey string` | the type of the context key `WithAuth` stores the user under; read it with `UserFrom` |
 
 Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`, and for
-token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. Unlike `gpio`
-and `mqtt` they carry no package prefix in their message (`"not authorized"`,
+token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. They
+carry no package prefix in their message (`"not authorized"`,
 `"forbidden"`, `"internal server error"`) — the text reaches the client, where a
 prefix would leak the implementation.
 
@@ -129,7 +130,7 @@ Without options, `WithCORS` sets these headers on every response:
 |---|---|
 | `Access-Control-Allow-Origin` | `*` |
 | `Access-Control-Allow-Methods` | `POST, GET, OPTIONS, PUT, PATCH, DELETE` |
-| `Access-Control-Allow-Headers` | `Content-Type, Authorization, X-Api-Key` |
+| `Access-Control-Allow-Headers` | `Content-Type, Authorization` (v1 also listed `X-Api-Key`) |
 | `Access-Control-Max-Age` | `86400` (one day; not configurable) |
 
 That is the historical behaviour and it is kept as the default so that upgrading
@@ -227,7 +228,7 @@ entry goes to the logger in the request context, see
 go test -race ./web/
 ```
 
-Coverage is 91.4 %, with `net/http/httptest` and no network. The error
+Coverage is 91.0 %, with `net/http/httptest` and no network. The error
 branches of the atomic file replacement (a failing write, chmod or sync) are
 not reached.
 
@@ -235,12 +236,6 @@ not reached.
 
 Known and deliberately left alone:
 
-- **The length of the API key stays observable.** The comparison is constant
-  time (`crypto/subtle`), but a key of a different length is still rejected
-  faster than a wrong one of the same length.
-- **The `X-Api-Key` warning stops after 256 clients per handler.** The set of
-  warned clients is bounded so that a flood of addresses cannot grow it; past
-  the bound the header still works, silently.
 - **No rate limiting.** Failed authentication shows only as a 401 with its
   `request.client` in the access log, and only where `WithLogging` is in the
   chain.

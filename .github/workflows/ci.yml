@@ -1,14 +1,12 @@
-# Continuous integration for github.com/womat/golib.
+# Continuous integration for github.com/womat/golib/v2.
 #
-# Why this exists: gpio/rpi does not build on macOS, which is where this library
-# is written, so "go test ./..." on a developer machine cannot cover it. Broken
-# gpio tests and a demo_app that did not compile went unnoticed for months. The
-# library jobs below run on Linux, where gpio/rpi builds natively and is
-# therefore checked like any other package.
+# Why this exists: a demo_app that did not compile went unnoticed for months
+# once, and the services built on this library run on Linux (a Raspberry Pi)
+# while it is written on macOS. The jobs run on Linux, the platform that ships.
 #
-# Everything under demo/ is a separate Go module with its own go.mod and a
-# replace directive pointing at the repository root, so a root-level "go build
-# ./..." ignores the demos entirely. They get their own jobs.
+# demo/demo_app is a separate Go module with its own go.mod and a replace
+# directive pointing at the repository root, so a root-level "go build ./..."
+# ignores it entirely. It gets its own jobs.
 #
 # Actions are pinned to a commit SHA, with the release in a comment: a tag like
 # @v7 can be moved to other code, a SHA cannot. dependabot (.github/dependabot.yml)
@@ -86,8 +84,8 @@ jobs:
           go-version-file: go.mod
       - name: go vet
         run: go vet ./...
-      # -race because the concurrency in gpio/internal/watch and the two
-      # manchester packages is the part worth testing.
+      # -race because the middleware runs on every request goroutine at once,
+      # and the logging middleware shares its first-access set between them.
       - name: go test
         run: go test -race -cover ./...
 
@@ -103,41 +101,21 @@ jobs:
           - { name: "Pi 3/4/5 64-bit", goos: linux, goarch: arm64 }
           - { name: "linux amd64", goos: linux, goarch: amd64 }
           - { name: "linux 386", goos: linux, goarch: "386" }
+          - { name: "windows amd64", goos: windows, goarch: amd64 }
+          - { name: "macOS arm64", goos: darwin, goarch: arm64 }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      # Only Linux targets: gpio/rpi depends on the Linux GPIO character device,
-      # so the library as a whole cannot be built for Windows or macOS.
+      # web/owner_unix.go and owner_other.go are the only platform split; both
+      # sides are built here.
       - name: go build
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           GOARM: ${{ matrix.goarm }}
         run: go build ./...
-
-  demos:
-    name: demo ${{ matrix.demo }}
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        demo: [blinker, listener, manchester_sender, manchester_listener]
-    defaults:
-      run:
-        working-directory: demo/${{ matrix.demo }}
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: demo/${{ matrix.demo }}/go.mod
-      - name: go vet
-        run: go vet ./...
-      - name: go build
-        run: go build -o /dev/null ./cmd
-      # These four drive real GPIO lines and have no tests; building them is
-      # what keeps the library's API changes from breaking its own examples.
 
   demo_app:
     name: demo_app
@@ -192,8 +170,7 @@ jobs:
           go-version-file: demo/demo_app/go.mod
       - name: generate dev certificate
         run: make ensure_dev_certs
-      # One target per build_* recipe in the Makefile. demo_app does not import
-      # gpio, which is why it reaches Windows and macOS and the library does not.
+      # One target per build_* recipe in the Makefile.
       - name: go build
         env:
           GOOS: ${{ matrix.goos }}

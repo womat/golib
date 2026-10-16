@@ -5,7 +5,7 @@
 //
 // SetupRoutes registers:
 //   - GET /version - public, no authentication
-//   - GET /health - protected, API key or JWT via web.WithAuth
+//   - GET /health - protected, a bearer token from the token file via web.WithAuth
 //   - OPTIONS / - the CORS preflight, as its own route so it never meets the
 //     authentication middleware
 //   - GET /swagger/ - only in builds made with -tags swagger
@@ -19,17 +19,12 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/womat/golib/web"
+	"github.com/womat/golib/v2/web"
 )
 
 // SetupRoutes configures all HTTP routes and global middleware for the application.
 func (app *App) SetupRoutes() {
-	webCfg := web.Config{
-		ApiKey:    app.config.Webserver.ApiKey,    //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
-		JwtSecret: app.config.Webserver.JwtSecret, //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
-		JwtID:     app.config.Webserver.JwtID,     //nolint:staticcheck // deprecated; the demo moves to Tokens with golib v2
-		AppName:   MODULE,
-	}
+	webCfg := web.Config{Tokens: app.config.Webserver.Tokens}
 
 	mux := http.NewServeMux()
 

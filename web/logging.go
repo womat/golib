@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -170,7 +171,7 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 	}
 
 	// Callers already logged at Info; see WithSuccessLevel.
-	seen := newClientSet(maxWarnedClients)
+	seen := newClientSet(maxSeenClients)
 
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
@@ -287,4 +288,41 @@ func isTextual(contentType string) bool {
 	return mediaType == "application/json" ||
 		mediaType == "application/xml" ||
 		strings.HasPrefix(mediaType, "text/")
+}
+
+// maxSeenClients bounds the callers WithLogging remembers per handler for the
+// first-access line. Beyond it no further caller is promoted to Info, so a
+// flood of addresses can neither grow the set nor the log.
+const maxSeenClients = 256
+
+// clientSet remembers which clients were already seen.
+type clientSet struct {
+	mu   sync.Mutex
+	max  int
+	seen map[string]struct{}
+}
+
+func newClientSet(max int) *clientSet {
+	return &clientSet{max: max, seen: make(map[string]struct{})}
+}
+
+// add reports whether client is new and was recorded; false once it was seen
+// or the set is full.
+func (s *clientSet) add(client string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.seen[client]; ok || len(s.seen) >= s.max {
+		return false
+	}
+	s.seen[client] = struct{}{}
+	return true
+}
+
+// clientHost is the address of the client without its port, or RemoteAddr as
+// it is when it cannot be split.
+func clientHost(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

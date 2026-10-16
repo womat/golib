@@ -3,17 +3,13 @@
 # Runs go fix, go vet, golangci-lint and govulncheck over every module in this
 # repository.
 #
-# Two things make a plain "go vet ./..." at the root insufficient:
+# A plain "go vet ./..." at the root is not enough: demo/demo_app is a
+# separate module with its own go.mod, so a root-level ./... never sees it.
+# Each module is visited on its own, and demo_app's development certificate,
+# which it embeds, is generated first.
 #
-#   1. gpio/rpi wraps the Linux GPIO character device through go-gpiocdev,
-#      which does not typecheck on macOS. Every tool here needs full type
-#      information, so on a developer machine that one package aborts the whole
-#      run - the errors look like a broken tool and are not. GOOS defaults to
-#      linux below for exactly that reason; it is the only setting under which
-#      gpio/rpi is checked at all.
-#
-#   2. Everything under demo/ is a separate module with its own go.mod, so a
-#      root-level ./... never sees it. Each module is visited on its own.
+# GOOS defaults to the host's. The services built on this library run on Linux
+# (a Raspberry Pi); --goos=linux checks what ships, and CI runs on Linux anyway.
 #
 # Usage:
 #   scripts/check.sh                     apply fixes, check everything
@@ -31,16 +27,12 @@ readonly REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 ALL_MODULES=(
 	.
-	demo/blinker
-	demo/listener
-	demo/manchester_sender
-	demo/manchester_listener
 	demo/demo_app
 )
 
 ALL_STEPS=(fix vet lint vuln)
 
-goos=linux
+goos=$(go env GOOS)
 check_only=0
 verbose=0
 skipped_steps=""

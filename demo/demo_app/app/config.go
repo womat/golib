@@ -10,16 +10,13 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/womat/golib/v2/web"
 	"gopkg.in/yaml.v3"
 )
 
 const (
 	ProdEnv = "prod"
 	DevEnv  = "dev"
-
-	// placeholderApiKey is what config/config.yaml ships with. It must not
-	// survive into a production deployment.
-	placeholderApiKey = "changeme!"
 )
 
 // envVarPattern matches ${NAME}, the only form LoadConfig expands. A bare $NAME
@@ -37,15 +34,14 @@ type Config struct {
 
 // WebserverConfig holds HTTPS server settings.
 type WebserverConfig struct {
-	ListenHost string   `yaml:"listenHost"` // Host address for web server
-	ListenPort int      `yaml:"listenPort"` // Port for web server
-	ApiKey     string   `yaml:"apiKey"`     // API key for requests
-	JwtSecret  string   `yaml:"jwtSecret"`  // Secret for JWT tokens
-	JwtID      string   `yaml:"jwtID"`      // Unique JWT ID
-	KeyFile    string   `yaml:"keyFile"`    // SSL private key file
-	CertFile   string   `yaml:"certFile"`   // SSL certificate file
-	BlockedIPs []string `yaml:"blockedIPs"` // Forbidden IP addresses or networks
-	AllowedIPs []string `yaml:"allowedIPs"` // Allowed IP addresses or networks
+	ListenHost string      `yaml:"listenHost"` // Host address for web server
+	ListenPort int         `yaml:"listenPort"` // Port for web server
+	TokenFile  string      `yaml:"tokenFile"`  // File with the accepted bearer tokens as SHA-256 hashes
+	Tokens     []web.Token `yaml:"-"`          // Read from TokenFile by LoadConfig
+	KeyFile    string      `yaml:"keyFile"`    // SSL private key file
+	CertFile   string      `yaml:"certFile"`   // SSL certificate file
+	BlockedIPs []string    `yaml:"blockedIPs"` // Forbidden IP addresses or networks
+	AllowedIPs []string    `yaml:"allowedIPs"` // Allowed IP addresses or networks
 }
 
 // NewConfig returns a Config with sane defaults
@@ -63,8 +59,41 @@ func NewConfig() *Config {
 	}
 }
 
-// LoadConfig loads configuration from a YAML file and expands environment variables.
+// LoadConfig loads configuration from a YAML file and expands environment variables,
+// then reads the bearer tokens from webserver.tokenFile.
+//
+// A token file that is missing or broken is an error: the service would otherwise
+// start and reject every request with 401. Since a config reload goes through
+// here, a token added with "demo_app token add" applies on reload.
 func LoadConfig(fileName string) (*Config, error) {
+	cfg, err := readConfig(fileName)
+	if err != nil {
+		return cfg, err
+	}
+
+	if cfg.Webserver.TokenFile != "" {
+		if cfg.Webserver.Tokens, err = web.ReadTokenFile(cfg.Webserver.TokenFile); err != nil {
+			return cfg, fmt.Errorf("token file: %w", err)
+		}
+	}
+
+	return cfg, nil
+}
+
+// TokenFile returns webserver.tokenFile of the config file, without reading the
+// token file itself - "demo_app token add" has to work before that file exists.
+func TokenFile(fileName string) (string, error) {
+	cfg, err := readConfig(fileName)
+	if err != nil {
+		return "", err
+	}
+	return cfg.Webserver.TokenFile, nil
+}
+
+// readConfig loads the config file alone. A relative tokenFile is resolved
+// against the directory of the config file, so the service and "demo_app token"
+// find the same file wherever they are started from.
+func readConfig(fileName string) (*Config, error) {
 	cfg := NewConfig()
 
 	fileInfo, err := os.Stat(fileName)
@@ -89,6 +118,10 @@ func LoadConfig(fileName string) (*Config, error) {
 	// Unmarshal YAML into the config struct
 	if err = yaml.Unmarshal([]byte(replaced), cfg); err != nil {
 		return cfg, fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	if f := cfg.Webserver.TokenFile; f != "" && !filepath.IsAbs(f) {
+		cfg.Webserver.TokenFile = filepath.Join(filepath.Dir(fileName), f)
 	}
 
 	return cfg, nil
@@ -165,8 +198,7 @@ func (c *Config) IsDevEnv() bool {
 // Validate checks the Config for invalid or missing values.
 //
 // It is stricter in ProdEnv: a production deployment has to name its TLS
-// certificate and must not run with the placeholder API key of the shipped
-// example configuration. Everything that can be decided without touching the
+// certificate. Everything that can be decided without touching the
 // network is decided here, so that the service fails at startup instead of on
 // the first request.
 func (c *Config) Validate() error {
@@ -175,12 +207,8 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid environment: %s, must be %s or %s", c.Env, ProdEnv, DevEnv)
 	}
 
-	if c.Webserver.ApiKey == "" {
-		return errors.New("ApiKey is not configured")
-	}
-
-	if c.Webserver.ApiKey == placeholderApiKey && c.Env == ProdEnv {
-		return fmt.Errorf("ApiKey is still the placeholder %q from the example configuration", placeholderApiKey)
+	if c.Webserver.TokenFile == "" {
+		return errors.New(`webserver.tokenFile is not configured; create a token with "demo_app token add <name>"`)
 	}
 
 	validLogLevels := []string{"debug", "info", "warning", "warn", "error"}
@@ -198,12 +226,6 @@ func (c *Config) Validate() error {
 
 	if err := validateListenHost(c.Webserver.ListenHost); err != nil {
 		return err
-	}
-
-	// A half configured JWT setup silently means "JWT disabled", which is not
-	// what someone who filled in one of the two fields had in mind.
-	if (c.Webserver.JwtSecret == "") != (c.Webserver.JwtID == "") {
-		return errors.New("jwtSecret and jwtID must be configured together")
 	}
 
 	// The embedded development certificate is only a fallback for DevEnv, see

@@ -21,7 +21,7 @@ func TestWithCORSDefault(t *testing.T) {
 	want := map[string]string{
 		"Access-Control-Allow-Origin":  "*",
 		"Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, PATCH, DELETE",
-		"Access-Control-Allow-Headers": "Content-Type, Authorization, X-Api-Key",
+		"Access-Control-Allow-Headers": "Content-Type, Authorization",
 		"Access-Control-Max-Age":       "86400",
 	}
 	for header, value := range want {
@@ -107,13 +107,13 @@ func TestWithCORSMethodsAndHeaders(t *testing.T) {
 
 	WithCORS(okHandler(&reached),
 		WithAllowedMethods("GET", "POST"),
-		WithAllowedHeaders("Content-Type", "X-Api-Key"),
+		WithAllowedHeaders("Content-Type", "X-Request-Id"),
 	).ServeHTTP(rec, req)
 
 	if got, want := rec.Header().Get("Access-Control-Allow-Methods"), "GET, POST"; got != want {
 		t.Errorf("Allow-Methods = %q, want %q", got, want)
 	}
-	if got, want := rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type, X-Api-Key"; got != want {
+	if got, want := rec.Header().Get("Access-Control-Allow-Headers"), "Content-Type, X-Request-Id"; got != want {
 		t.Errorf("Allow-Headers = %q, want %q", got, want)
 	}
 }

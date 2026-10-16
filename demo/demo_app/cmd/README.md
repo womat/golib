@@ -11,7 +11,15 @@ for and how it is put together.
 
 ```text
 demo_app [--config FILE] [--debug] [--version] [--about] [--help]
+demo_app token add <name> [-config FILE] [-dry-run]
+demo_app token remove <name> [-config FILE] [-dry-run]
+demo_app token list [-config FILE]
 ```
+
+`token` manages the bearer tokens in the file named by `webserver.tokenFile`:
+`add` creates a token, prints it once and stores only its SHA-256 hash, `remove`
+deletes one, `list` shows the names. Apply a change with
+`systemctl reload demo_app`.
 
 ---
 
@@ -43,5 +51,5 @@ CONFIG_FILE=/opt/demo_app/etc/config.yaml demo_app
 The configuration file is a YAML file. By default it is loaded from `/opt/demo_app/etc/config.yaml`.
 
 Environment variables are expanded inside the file in the braced form only,
-e.g. `apiKey: ${DEMO_APP_API_KEY}`; a referenced variable that is not set is a
+e.g. `certFile: ${DEMO_APP_CERT}`; a referenced variable that is not set is a
 startup error. See [`../README.md`](../README.md#environment-variables).

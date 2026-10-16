@@ -5,9 +5,8 @@
 // Authentication accepts a bearer token whose SHA-256 hash is in Config.Tokens,
 // usually read from a token file with ReadTokenFile and managed with the
 // TokenCommand subcommand; the token's name then appears in the access log.
-// For existing clients it also accepts an API key as a static bearer token in
-// Authorization: Bearer, or in the deprecated X-Api-Key header, or a JWT in
-// Authorization: Bearer, validated through jwt_util. CORS, IP filtering and
+// There is no other way in: no API key, no X-Api-Key header, no JWT. CORS, IP
+// filtering and
 // request logging are independent wrappers that can be combined in any order -
 // see the README for the ordering that is actually useful. Encode and Decode
 // handle JSON bodies, WriteError produces a uniform JSON error body and logs

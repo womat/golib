@@ -11,19 +11,11 @@ optional Swagger UI that production builds do not contain.
 Start a new service by copying this directory and stripping what it does not
 need.
 
-> **Note:** the demo still authenticates with `apiKey` and JWT, which are
-> deprecated in `golib/web`. The current pattern for a service — a token file
-> `token-hashes` holding SHA-256 hashes, a `<svc> token add|remove|list`
-> subcommand via `web.TokenCommand`, everything under `/opt/<svc>` owned by root,
-> `etc` as `root:<svc>` with mode 750 — is in
-> [github.com/womat/tadl](https://github.com/womat/tadl). The demo moves to it
-> with golib v2.
-
 ---
 
 ## Features
 
-- Exposes a secured **HTTPS REST API** (API key authentication)
+- Exposes a secured **HTTPS REST API** (bearer tokens from a token file, `demo_app token add`)
 - **IP allowlist / blocklist** support
 - **Hot-reload** of configuration via `SIGHUP`
 - Embedded self-signed TLS certificate for development (no setup required)
@@ -44,11 +36,19 @@ need.
 | Method | Path       | Auth    | Description                        |
 |--------|------------|---------|------------------------------------|
 | GET    | `/version` | —       | Application name and version       |
-| GET    | `/health`  | API Key | Runtime metrics (memory, uptime …) |
+| GET    | `/health`  | Token   | Runtime metrics (memory, uptime …) |
 
-Authentication with the API key as a bearer token, `Authorization: Bearer <key>`. The
-`X-Api-Key` header is deprecated: still accepted, but each client using it is logged once as a
-warning.
+Authentication with a bearer token, `Authorization: Bearer <token>`. Each caller
+gets a token of its own; the service keeps only its SHA-256 hash in the token
+file and logs the token's name with every request (`user=nodered`).
+
+```sh
+# Create a token; it is printed once and then exists only with the caller.
+sudo /opt/demo_app/bin/demo_app token add nodered
+sudo /opt/demo_app/bin/demo_app token list
+sudo /opt/demo_app/bin/demo_app token remove nodered
+sudo systemctl reload demo_app     # applies the change
+```
 
 ### Examples
 
@@ -57,7 +57,7 @@ warning.
 curl -k https://localhost:8443/version
 
 # Health check
-curl -k -H "Authorization: Bearer your-api-key" https://localhost:8443/health
+curl -k -H "Authorization: Bearer <token>" https://localhost:8443/health
 ```
 
 ---
@@ -77,7 +77,7 @@ Values may reference environment variables as `${NAME}`:
 
 ```yaml
 webserver:
-  apiKey: ${DEMO_APP_API_KEY}
+  certFile: ${DEMO_APP_CERT}
 ```
 
 Only that braced form is expanded. A bare `$NAME` is left alone, so a value like
@@ -87,47 +87,24 @@ up in production.
 
 ### Secrets
 
-`apiKey` and `jwtSecret` are secrets, and the recommended place for them is the
-environment, not this file:
+The demo holds no secret of its own: callers authenticate with tokens whose
+hashes are in the token file, and a hash is not a secret. Write access to that
+file is what must be protected — whoever can write it adds a token of their
+own — hence the permissions under [Installation](#installation).
 
-```yaml
-webserver:
-  apiKey: ${DEMO_APP_API_KEY}
-  jwtSecret: ${DEMO_APP_JWT_SECRET}
-```
-
-```ini
-# /etc/systemd/system/demo_app.service
-[Service]
-Environment=DEMO_APP_API_KEY=...
-# or, to keep it out of the unit file as well:
-EnvironmentFile=/opt/demo_app/etc/secrets.env
-```
-
-That is the only arrangement in which the secret is not in the configuration
-file at all. Whatever the file does hold deserves the matching permissions
-(`chmod 600`, owned by the service user) and has no business in a repository.
-
-**Why not `crypt.EncryptedString`?** The library offers a string type that
-marshals as ciphertext, and [`sqlite4router`](https://github.com/itdesign-at)
-uses it for exactly these fields. It is deliberately not used here: its AES key
-is compiled into the binary and published in this repository, so anyone who can
-read the configuration file can also decrypt it with three lines of code — see
-[`crypt/README.md`](../../crypt/README.md), section *Security model*. It is real
-protection against *accidental* disclosure (a screenshot, a backup, a struct
-dumped into a log) and none at all against someone with file access. A template
-should not suggest otherwise; if that trade-off is acceptable for a particular
-service, the type is there.
+A service built from this template that *sends* a secret (an MQTT password, a
+cloud login) references it as `${NAME}` and gets it from an `EnvironmentFile`
+(`/opt/<svc>/etc/.env`, mode 600, owned by root), never in plain text in
+`config.yaml` and never in a repository.
 
 ### What is validated at startup
 
-Beyond the environment, the API key, the log level and the port range:
+Beyond the environment, the log level and the port range:
 
 | Check | Applies |
 |---|---|
+| `tokenFile` is configured, and the file exists and parses | always |
 | `certFile` and `keyFile` are configured | `env: prod` only |
-| `apiKey` is not the shipped placeholder `changeme!` | `env: prod` only |
-| `jwtSecret` and `jwtID` are set together or not at all | always |
 | `logDestination` is a known name, or a path whose directory exists | always |
 | `listenHost` is empty, an IP address or `localhost` | always |
 | every entry of `allowedIPs`/`blockedIPs` parses as IP or CIDR | always |
@@ -163,8 +140,8 @@ webserver:
   # Port the HTTPS server listens on (default: 8443)
   listenPort: 8443
 
-  # Global API key for protected endpoints
-  apiKey: changeme!
+  # Token file, managed with "demo_app token add|remove|list"; relative to this file
+  tokenFile: token-hashes
 
   # TLS private key file
   keyFile: /opt/demo_app/etc/key.pem
@@ -231,24 +208,29 @@ openssl req -x509 -nodes -newkey rsa:2048 \
 
 ## Installation
 
+Everything under `/opt/demo_app` belongs to root; the group `demo_app` may only
+read `etc/`. The service user must not be able to write its configuration, its
+token file or its program — whoever can write the token file adds a token of
+their own. Only `data/` belongs to the service, for a service that stores
+something.
+
 ### 1. Create system user and directories
 
 ```sh
-sudo groupadd -f demo_app
-sudo useradd -r -s /usr/sbin/nologin -g demo_app demo_app
-sudo usermod -aG gpio demo_app
-
-sudo mkdir -p /opt/demo_app/{bin,etc,data}
-sudo chown -R demo_app:demo_app /opt/demo_app
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin demo_app
+sudo install -d -o root -g root -m 0755 /opt/demo_app /opt/demo_app/bin
+sudo install -d -o root -g demo_app -m 0750 /opt/demo_app/etc
+sudo install -d -o demo_app -g demo_app -m 0750 /opt/demo_app/data
 ```
 
-### 2. Copy files
+### 2. Copy files and create a token
 
 ```sh
-sudo cp demo_app /opt/demo_app/bin/
-sudo cp config.yaml /opt/demo_app/etc/
-sudo cp cert.pem key.pem /opt/demo_app/etc/
-sudo chown -R demo_app:demo_app /opt/demo_app
+sudo install -o root -g root -m 0755 demo_app /opt/demo_app/bin/demo_app
+sudo install -o root -g demo_app -m 0640 config.yaml /opt/demo_app/etc/config.yaml
+sudo install -o root -g demo_app -m 0640 key.pem /opt/demo_app/etc/key.pem
+sudo install -o root -g root -m 0644 cert.pem /opt/demo_app/etc/cert.pem
+sudo /opt/demo_app/bin/demo_app token add browser   # creates etc/token-hashes
 ```
 
 ### 3. Create systemd service
@@ -265,6 +247,7 @@ User=demo_app
 Group=demo_app
 Type=simple
 ExecStart=/opt/demo_app/bin/demo_app
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
 RestartSec=5
 
@@ -309,7 +292,8 @@ make deploy
 
 ## Hot-Reload
 
-Send `SIGHUP` to reload the configuration without restarting the process:
+Send `SIGHUP` to reload the configuration and the token file without restarting
+the process:
 
 ```sh
 sudo systemctl reload demo_app
@@ -337,7 +321,6 @@ sudo tar czf /tmp/demo_app-backup.tar.gz /opt/demo_app
 
 # Restore
 sudo tar xzf /tmp/demo_app-backup.tar.gz -C /
-sudo chown -R demo_app:demo_app /opt/demo_app
 sudo systemctl restart demo_app
 ```
 

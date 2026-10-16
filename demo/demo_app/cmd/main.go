@@ -16,7 +16,8 @@ import (
 	"time"
 
 	"github.com/womat/golib/demo/demo_app/app"
-	"github.com/womat/golib/xlog"
+	"github.com/womat/golib/v2/web"
+	"github.com/womat/golib/v2/xlog"
 	"gopkg.in/yaml.v3"
 )
 
@@ -34,13 +35,23 @@ var (
 // @securityDefinitions.apikey	BearerAuth
 // @in							header
 // @name						Authorization
-// @description				The API key as a bearer token: "Bearer <key>".
-//
-// @securityDefinitions.apikey	ApiKeyAuth
-// @in							header
-// @name						X-Api-Key
-// @description				Deprecated: send the key as a bearer token instead (BearerAuth). Still accepted, but logged as a warning.
+// @description				A token from "demo_app token add <name>", sent as "Bearer <token>".
 func main() {
+	defaultConfig := filepath.Join("/opt", app.MODULE, "etc", "config.yaml")
+	if envCfg := os.Getenv("CONFIG_FILE"); envCfg != "" {
+		defaultConfig = envCfg
+	}
+
+	// "demo_app token add|remove|list" manages the bearer tokens in webserver.tokenFile.
+	if len(os.Args) > 1 && os.Args[1] == "token" {
+		os.Exit(web.TokenCommand{
+			App:           app.MODULE,
+			DefaultConfig: defaultConfig,
+			TokenFile:     app.TokenFile,
+			Apply:         "Apply with: systemctl reload " + app.MODULE,
+		}.Run(os.Args[2:]))
+	}
+
 	// Parse command line flags.
 	flags := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	flags.SetOutput(os.Stdout)
@@ -49,11 +60,7 @@ func main() {
 	help := flags.Bool("help", false, "Print a help message and exit")
 	version := flags.Bool("version", false, "Print the app version and exit")
 	debug := flags.Bool("debug", false, "Enable debug logging to stdout (overrides log settings from the config file)")
-	configFile := flags.String("config", filepath.Join("/opt", app.MODULE, "etc", "config.yaml"), "Specify the path to the config file")
-
-	if envCfg := os.Getenv("CONFIG_FILE"); envCfg != "" {
-		*configFile = envCfg
-	}
+	configFile := flags.String("config", defaultConfig, "Specify the path to the config file")
 
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		fmt.Println("Error parsing flags:", err)

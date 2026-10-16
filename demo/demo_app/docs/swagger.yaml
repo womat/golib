@@ -52,7 +52,6 @@ paths:
             type: string
       security:
       - BearerAuth: []
-      - ApiKeyAuth: []
       summary: Get health data
       tags:
       - info
@@ -76,14 +75,8 @@ paths:
       tags:
       - info
 securityDefinitions:
-  ApiKeyAuth:
-    description: 'Deprecated: send the key as a bearer token instead (BearerAuth).
-      Still accepted, but logged as a warning.'
-    in: header
-    name: X-Api-Key
-    type: apiKey
   BearerAuth:
-    description: 'The API key as a bearer token: "Bearer <key>".'
+    description: A token from "demo_app token add <name>", sent as "Bearer <token>".
     in: header
     name: Authorization
     type: apiKey

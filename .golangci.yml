@@ -1,8 +1,8 @@
-# golangci-lint configuration for github.com/womat/golib.
+# golangci-lint configuration for github.com/womat/golib/v2.
 #
-# Run it through scripts/check.sh rather than directly: every linter here needs
-# full type information, so on macOS gpio/rpi aborts the run, and the five
-# modules under demo/ are invisible to a root-level ./...
+# Run it through scripts/check.sh rather than directly: the module under
+# demo/demo_app is invisible to a root-level ./..., and the script also
+# generates the certificate that module embeds.
 #
 # The default linter set is kept. The exclusions below are decisions, not
 # convenience - each one says why.
@@ -13,51 +13,19 @@ linters:
   settings:
     errcheck:
       # This library's convention is that every resource-owning type has an
-      # explicit Close/Disconnect that callers must defer (see CLAUDE.md). A
-      # deferred Close has nowhere to return an error to, so errcheck and the
+      # explicit Close that callers must defer (see CLAUDE.md). A deferred
+      # Close has nowhere to return an error to, so errcheck and the
       # convention are in direct conflict; the convention wins. Listed
       # explicitly rather than switching errcheck off, so an unchecked error
       # from anything else still gets reported.
       exclude-functions:
-        - (github.com/womat/golib/gpio.Pin).Close
-        - (github.com/womat/golib/gpio/rpiemu.Pin).Close
-        - (*github.com/womat/golib/manchester/encoder.Encoder).Close
-        - (*github.com/womat/golib/manchester/decoder.Decoder).Close
-        - (*github.com/womat/golib/xlog.LoggerWrapper).Close
+        - (*github.com/womat/golib/v2/xlog.LoggerWrapper).Close
 
   exclusions:
     rules:
       # Test code may ignore what it is not asserting on: a deferred Close, an
-      # os.Remove of a temporary directory, a SetValue whose effect the test
-      # then checks by other means. Reporting those buries the findings that
-      # matter under a list of things nobody intends to handle.
+      # os.Remove of a temporary directory. Reporting those buries the findings
+      # that matter under a list of things nobody intends to handle.
       - path: _test\.go
         linters:
           - errcheck
-
-      # gpio, rpi and rpiemu are deprecated (16.10.2026): they moved to
-      # github.com/womat/gpio and are removed here in v2. Until then the code
-      # and the demos that use it stay unchanged on purpose, so rpi, rpiemu and
-      # the four demos keep importing golib/gpio. Matched by the import path in
-      # the message, so a different deprecation is still reported.
-      - text: "SA1019: github.com/womat/golib/gpio"
-        linters:
-          - staticcheck
-
-      # Same for encoder and decoder (16.10.2026): moved to
-      # github.com/womat/manchester, removed here in v2. The roundtrip test and
-      # the two manchester demos keep importing them until then.
-      - text: "SA1019: github.com/womat/golib/manchester"
-        linters:
-          - staticcheck
-
-      # crypt is deliberately frozen (19.09.2026): a change there would force a
-      # major tag and make this copy diverge from the ones in signit and
-      # sqlite4router, which carry their own. The finding is real - Compare
-      # should read "return err == nil" - and it is recorded in
-      # crypt/README.md under "Not addressed" instead of being fixed here.
-      # Excluded by path so the file stays byte-identical to those copies.
-      - path: ^crypt/
-        text: "S1008"
-        linters:
-          - staticcheck

@@ -20,9 +20,6 @@ const docTemplate = `{
                 "security": [
                     {
                         "BearerAuth": []
-                    },
-                    {
-                        "ApiKeyAuth": []
                     }
                 ],
                 "description": "Retrieves memory usage, goroutine count, version, hostname, Go runtime version, and OS.",
@@ -126,14 +123,8 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
-        "ApiKeyAuth": {
-            "description": "Deprecated: send the key as a bearer token instead (BearerAuth). Still accepted, but logged as a warning.",
-            "type": "apiKey",
-            "name": "X-Api-Key",
-            "in": "header"
-        },
         "BearerAuth": {
-            "description": "The API key as a bearer token: \"Bearer \u003ckey\u003e\".",
+            "description": "A token from \"demo_app token add \u003cname\u003e\", sent as \"Bearer \u003ctoken\u003e\".",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

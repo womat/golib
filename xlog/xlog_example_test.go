@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/womat/golib/xlog"
+	"github.com/womat/golib/v2/xlog"
 )
 
 // ExampleInit zeigt die Verwendung von xlog mit stdout, Datei und null logging.

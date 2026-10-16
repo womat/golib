@@ -99,4 +99,4 @@ Known and deliberately left alone:
 - **`Init` does not set the default logger.** Callers that want
   `slog.Info(...)` to work package-wide must call `slog.SetDefault` themselves.
 
-Full API: `go doc github.com/womat/golib/xlog`.
+Full API: `go doc github.com/womat/golib/v2/xlog`.

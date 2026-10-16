@@ -1,11 +1,9 @@
 # Keeps dependencies from drifting the way they had by 21.09.2026, when
-# golang.org/x/crypto was nine minor releases behind in a repository that
-# contains a package called crypt.
+# golang.org/x/crypto was nine minor releases behind.
 #
-# One gomod entry per module: everything under demo/ has its own go.mod, so a
-# single entry would leave five modules unwatched. Updates are grouped, because
-# these modules move together and six separate pull requests for the same
-# golang.org/x bump are noise.
+# One gomod entry per module: demo/demo_app has its own go.mod, so a single
+# entry would leave it unwatched. Updates are grouped, because the modules move
+# together and separate pull requests for the same golang.org/x bump are noise.
 #
 # To switch this off, delete this file. The CI workflow does not depend on it.
 
@@ -15,10 +13,6 @@ updates:
   - package-ecosystem: gomod
     directories:
       - /
-      - /demo/blinker
-      - /demo/listener
-      - /demo/manchester_sender
-      - /demo/manchester_listener
       - /demo/demo_app
     schedule:
       interval: weekly

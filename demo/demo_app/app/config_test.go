@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/womat/golib/v2/web"
 )
 
 // writeConfig puts content into a temporary file and returns its path.
@@ -22,7 +24,7 @@ func writeConfig(t *testing.T, content string) string {
 // the cases that change one thing about it.
 func validConfig() *Config {
 	cfg := NewConfig()
-	cfg.Webserver.ApiKey = "a-real-key"
+	cfg.Webserver.TokenFile = "/opt/demo_app/etc/token-hashes"
 	return cfg
 }
 
@@ -60,14 +62,14 @@ func TestLoadConfigDirectory(t *testing.T) {
 func TestLoadConfigExpandsBracedVariables(t *testing.T) {
 	t.Setenv("DEMO_APP_TEST_KEY", "from-the-environment")
 
-	path := writeConfig(t, "webserver:\n  apiKey: ${DEMO_APP_TEST_KEY}\n")
+	path := writeConfig(t, "webserver:\n  certFile: ${DEMO_APP_TEST_KEY}\n")
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Webserver.ApiKey != "from-the-environment" {
-		t.Errorf("ApiKey = %q, want the expanded value", cfg.Webserver.ApiKey)
+	if cfg.Webserver.CertFile != "from-the-environment" {
+		t.Errorf("CertFile = %q, want the expanded value", cfg.Webserver.CertFile)
 	}
 }
 
@@ -75,21 +77,21 @@ func TestLoadConfigLeavesBareDollarAlone(t *testing.T) {
 	// The whole point of the restricted expansion: a password keeps its dollars.
 	t.Setenv("w0rd", "expanded")
 
-	path := writeConfig(t, "webserver:\n  apiKey: pa$$w0rd\n")
+	path := writeConfig(t, "webserver:\n  certFile: pa$$w0rd\n")
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Webserver.ApiKey != "pa$$w0rd" {
-		t.Errorf("ApiKey = %q, want pa$$w0rd unchanged", cfg.Webserver.ApiKey)
+	if cfg.Webserver.CertFile != "pa$$w0rd" {
+		t.Errorf("CertFile = %q, want pa$$w0rd unchanged", cfg.Webserver.CertFile)
 	}
 }
 
 func TestLoadConfigUndefinedVariable(t *testing.T) {
 	os.Unsetenv("DEMO_APP_DEFINITELY_NOT_SET")
 
-	path := writeConfig(t, "webserver:\n  apiKey: ${DEMO_APP_DEFINITELY_NOT_SET}\n")
+	path := writeConfig(t, "webserver:\n  certFile: ${DEMO_APP_DEFINITELY_NOT_SET}\n")
 
 	_, err := LoadConfig(path)
 	if err == nil {
@@ -101,7 +103,7 @@ func TestLoadConfigUndefinedVariable(t *testing.T) {
 }
 
 func TestLoadConfigInvalidYAML(t *testing.T) {
-	path := writeConfig(t, "webserver:\n\tapiKey: tabs are not yaml\n")
+	path := writeConfig(t, "webserver:\n\tcertFile: tabs are not yaml\n")
 
 	if _, err := LoadConfig(path); err == nil {
 		t.Error("LoadConfig accepted invalid YAML")
@@ -126,23 +128,9 @@ func TestValidate(t *testing.T) {
 			wantErr: "invalid environment",
 		},
 		{
-			name:    "missing api key",
-			modify:  func(c *Config) { c.Webserver.ApiKey = "" },
-			wantErr: "ApiKey is not configured",
-		},
-		{
-			name: "placeholder api key in prod",
-			modify: func(c *Config) {
-				c.Env = ProdEnv
-				c.Webserver.ApiKey = placeholderApiKey
-				c.Webserver.CertFile = "/etc/cert.pem"
-				c.Webserver.KeyFile = "/etc/key.pem"
-			},
-			wantErr: "placeholder",
-		},
-		{
-			name:   "placeholder api key in dev is allowed",
-			modify: func(c *Config) { c.Webserver.ApiKey = placeholderApiKey },
+			name:    "missing token file",
+			modify:  func(c *Config) { c.Webserver.TokenFile = "" },
+			wantErr: "tokenFile is not configured",
 		},
 		{
 			name:    "unknown log level",
@@ -172,16 +160,6 @@ func TestValidate(t *testing.T) {
 		{
 			name:   "listen host localhost is fine",
 			modify: func(c *Config) { c.Webserver.ListenHost = "localhost" },
-		},
-		{
-			name:    "jwt secret without id",
-			modify:  func(c *Config) { c.Webserver.JwtSecret = "s3cr3t" },
-			wantErr: "must be configured together",
-		},
-		{
-			name:    "jwt id without secret",
-			modify:  func(c *Config) { c.Webserver.JwtID = "an-id" },
-			wantErr: "must be configured together",
 		},
 		{
 			name: "prod without certificate",
@@ -254,27 +232,68 @@ func TestLoadConfigIgnoresComments(t *testing.T) {
 	// variable exists.
 	os.Unsetenv("NAME")
 
-	path := writeConfig(t, "# reference variables as ${NAME}\nwebserver:\n  apiKey: a-key # or ${ALSO_UNSET}\n")
+	path := writeConfig(t, "# reference variables as ${NAME}\nwebserver:\n  certFile: a-key # or ${ALSO_UNSET}\n")
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Webserver.ApiKey != "a-key" {
-		t.Errorf("ApiKey = %q, want a-key", cfg.Webserver.ApiKey)
+	if cfg.Webserver.CertFile != "a-key" {
+		t.Errorf("CertFile = %q, want a-key", cfg.Webserver.CertFile)
 	}
 }
 
 func TestLoadConfigExpandsInsideQuotedValueWithHash(t *testing.T) {
 	t.Setenv("DEMO_APP_HASH_KEY", "value-with")
 
-	path := writeConfig(t, `webserver:`+"\n"+`  apiKey: "${DEMO_APP_HASH_KEY}#not-a-comment"`+"\n")
+	path := writeConfig(t, `webserver:`+"\n"+`  certFile: "${DEMO_APP_HASH_KEY}#not-a-comment"`+"\n")
 
 	cfg, err := LoadConfig(path)
 	if err != nil {
 		t.Fatalf("LoadConfig: %v", err)
 	}
-	if cfg.Webserver.ApiKey != "value-with#not-a-comment" {
-		t.Errorf("ApiKey = %q, want value-with#not-a-comment", cfg.Webserver.ApiKey)
+	if cfg.Webserver.CertFile != "value-with#not-a-comment" {
+		t.Errorf("CertFile = %q, want value-with#not-a-comment", cfg.Webserver.CertFile)
+	}
+}
+
+func TestLoadConfigReadsTheTokenFile(t *testing.T) {
+	dir := t.TempDir()
+	hash := web.HashToken("the-token")
+	if err := web.AddTokenToFile(filepath.Join(dir, "token-hashes"), "nodered", hash); err != nil {
+		t.Fatalf("AddTokenToFile: %v", err)
+	}
+	path := filepath.Join(dir, "config.yaml")
+	// A relative tokenFile is resolved against the directory of the config file.
+	if err := os.WriteFile(path, []byte("webserver:\n  tokenFile: token-hashes\n"), 0600); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if want := filepath.Join(dir, "token-hashes"); cfg.Webserver.TokenFile != want {
+		t.Errorf("TokenFile = %q, want %q", cfg.Webserver.TokenFile, want)
+	}
+	if len(cfg.Webserver.Tokens) != 1 || cfg.Webserver.Tokens[0].Name != "nodered" || cfg.Webserver.Tokens[0].Hash != hash {
+		t.Errorf("Tokens = %+v, want the one token of the file", cfg.Webserver.Tokens)
+	}
+}
+
+func TestLoadConfigMissingTokenFile(t *testing.T) {
+	path := writeConfig(t, "webserver:\n  tokenFile: token-hashes\n")
+
+	if _, err := LoadConfig(path); err == nil || !strings.Contains(err.Error(), "token file") {
+		t.Errorf("LoadConfig = %v, want an error about the missing token file", err)
+	}
+
+	// "demo_app token add" has to work before the file exists.
+	got, err := TokenFile(path)
+	if err != nil {
+		t.Fatalf("TokenFile: %v", err)
+	}
+	if want := filepath.Join(filepath.Dir(path), "token-hashes"); got != want {
+		t.Errorf("TokenFile = %q, want %q", got, want)
 	}
 }
