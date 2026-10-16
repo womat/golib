@@ -1,5 +1,8 @@
 // Package rpiemu provides an in-memory emulator for gpio.Pin.
 //
+// Deprecated: rpiemu moved to its own module, github.com/womat/gpio/rpiemu, with the same
+// API; change the import path. It is removed from golib in v2.
+//
 // This package simulates GPIO behavior without requiring hardware, making it
 // useful for testing and development. Each pin simulates a single GPIO line,
 // including its mode (input/output), pull-up/down resistors, logical state,

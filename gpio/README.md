@@ -1,5 +1,10 @@
 # gpio
 
+> **Deprecated:** gpio, rpi and rpiemu moved to their own module,
+> [github.com/womat/gpio](https://github.com/womat/gpio), with the same API —
+> change the import path. They are removed from golib in v2. The code here stays
+> unchanged until then; further development happens in the new module.
+
 A backend-agnostic GPIO pin abstraction, developed primarily for the Raspberry
 Pi.
 

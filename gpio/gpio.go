@@ -10,6 +10,9 @@
 // Note: This package does not interact with hardware directly.
 // It only defines the abstraction layer for GPIO implementations.
 //
+// Deprecated: gpio moved to its own module, github.com/womat/gpio, with the same
+// API; change the import path. It is removed from golib in v2.
+//
 // # Example usage
 //
 //	// Pick a backend: rpi on a Raspberry Pi, rpiemu everywhere else.

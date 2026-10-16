@@ -17,9 +17,9 @@ Requires Go 1.27 or later.
 
 | Package | Purpose |
 |---|---|
-| [`gpio`](gpio/README.md) | Backend-agnostic `Pin` interface: levels, modes, pull resistors, edge events |
-| [`gpio/rpi`](gpio/README.md) | Linux implementation using the GPIO character device (`go-gpiocdev`) — **Linux only** |
-| [`gpio/rpiemu`](gpio/README.md) | In-memory GPIO emulator for tests and development without hardware |
+| [`gpio`](gpio/README.md) | Backend-agnostic `Pin` interface: levels, modes, pull resistors, edge events — **deprecated**, moved to [github.com/womat/gpio](https://github.com/womat/gpio); removed in v2 |
+| [`gpio/rpi`](gpio/README.md) | Linux implementation using the GPIO character device (`go-gpiocdev`) — **Linux only**, **deprecated** like `gpio` |
+| [`gpio/rpiemu`](gpio/README.md) | In-memory GPIO emulator for tests and development without hardware — **deprecated** like `gpio` |
 | [`manchester/encoder`](manchester/README.md) | Manchester encoder (IEEE 802.3 / Thomas), configurable bit order, sync bytes, async sending |
 | [`manchester/decoder`](manchester/README.md) | Manchester decoder for any bit rate: recovers and follows the sender's clock, with tolerance handling |
 | [`web`](web/README.md) | Composable `http.Handler` middleware: auth with hashed bearer tokens, CORS, IP filter, logging, JSON helpers |
@@ -214,7 +214,7 @@ v2 changes the module path to `github.com/womat/golib/v2`, so every import chang
 anyway; breaking changes wait for it and are collected here. Until then, each item
 is marked `// Deprecated:` in v1 and keeps working.
 
-- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)) and `crypt`
+- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)), `gpio` with `rpi` and `rpiemu` (lives on as [github.com/womat/gpio](https://github.com/womat/gpio)) and `crypt`
 - `web`: remove `Config.ApiKey`, `Config.JwtSecret`, `Config.JwtID` and the `X-Api-Key` header; `Config.Tokens` is the only authentication
 - `demo/demo_app` moves to `Tokens`
 - split a package into its own module (`<pkg>/go.mod`, tags `<pkg>/vX.Y.Z`) only if it needs a version of its own by then

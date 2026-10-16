@@ -35,6 +35,15 @@ linters:
         linters:
           - errcheck
 
+      # gpio, rpi and rpiemu are deprecated (16.10.2026): they moved to
+      # github.com/womat/gpio and are removed here in v2. Until then the code
+      # and the demos that use it stay unchanged on purpose, so rpi, rpiemu and
+      # the four demos keep importing golib/gpio. Matched by the import path in
+      # the message, so a different deprecation is still reported.
+      - text: "SA1019: github.com/womat/golib/gpio"
+        linters:
+          - staticcheck
+
       # crypt is deliberately frozen (19.09.2026): a change there would force a
       # major tag and make this copy diverge from the ones in signit and
       # sqlite4router, which carry their own. The finding is real - Compare

@@ -1,6 +1,9 @@
 // Package rpi provides a Linux implementation of the gpio.Pin interface
 // using the go-gpiocdev library.
 //
+// Deprecated: rpi moved to its own module, github.com/womat/gpio/rpi, with the same
+// API; change the import path. It is removed from golib in v2.
+//
 // This package interacts with GPIO lines via the Linux character device
 // interface (gpiod). It allows configuring Pins as input or output,
 // reading and writing logical levels, configuring pull resistors,
