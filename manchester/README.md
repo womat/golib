@@ -1,5 +1,10 @@
 # manchester
 
+> **Deprecated:** encoder and decoder moved to their own module,
+> [github.com/womat/manchester](https://github.com/womat/manchester), with the same API —
+> change the import path. They are removed from golib in v2. The code here stays
+> unchanged until then; further development happens in the new module.
+
 Manchester line coding: `encoder` turns bytes into a sequence of line levels,
 `decoder` turns a stream of edge events back into bits.
 

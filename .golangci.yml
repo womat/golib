@@ -44,6 +44,13 @@ linters:
         linters:
           - staticcheck
 
+      # Same for encoder and decoder (16.10.2026): moved to
+      # github.com/womat/manchester, removed here in v2. The roundtrip test and
+      # the two manchester demos keep importing them until then.
+      - text: "SA1019: github.com/womat/golib/manchester"
+        linters:
+          - staticcheck
+
       # crypt is deliberately frozen (19.09.2026): a change there would force a
       # major tag and make this copy diverge from the ones in signit and
       # sqlite4router, which carry their own. The finding is real - Compare

@@ -79,7 +79,9 @@ adapter over code that is tested under `-race`. **`gpio`, `rpi` and `rpiemu` are
 since v1.5.3: they live on as `github.com/womat/gpio` (same API, with the `blinker` and
 `listener` demos), and v2 drops them here. The code in golib stays as it is until then.
 
-**Manchester signal chain.** `manchester/encoder` and `manchester/decoder` are deliberately
+**Manchester signal chain.** `manchester/encoder` and `manchester/decoder` are **deprecated**
+since v1.5.4: they live on as `github.com/womat/manchester` (one module, same API, with both
+demos), and v2 drops them here; the code in golib stays as it is until then. They are deliberately
 decoupled from `gpio`: the encoder takes a `SetValue func(Level) error` callback, and the
 decoder consumes a channel of its own `decoder.Event` values. The demos do the glue — a
 goroutine translating `gpio.Event` into `decoder.Event` (see
@@ -186,8 +188,8 @@ because this repository's own convention is that callers `defer` them and a defe
 has nowhere to return an error to; test files are exempt from `errcheck` entirely; and
 `crypt` is exempt from `S1008` because that package is frozen and must stay byte-identical
 to the copies in `signit` and `sqlite4router` — the finding is recorded in
-`crypt/README.md` under *Not addressed* instead. Imports of the deprecated `golib/gpio` are exempt from
-`SA1019`, because that code and its demos stay unchanged until v2. **Do not widen these exclusions to make a
+`crypt/README.md` under *Not addressed* instead. Imports of the deprecated `golib/gpio` and `golib/manchester` are
+exempt from `SA1019`, because that code and its demos stay unchanged until v2. **Do not widen these exclusions to make a
 new finding go away; fix the finding or record the decision.**
 
 **CI:** `.github/workflows/ci.yml`, on pushes to `main` and on pull requests. Actions are pinned to a commit SHA with the release in a comment — never a movable tag like `@v7`; dependabot updates the pins.

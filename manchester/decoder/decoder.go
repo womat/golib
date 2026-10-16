@@ -3,6 +3,9 @@
 // decoding asynchronously using Go's goroutines and channels, ensuring efficient handling
 // of events and continuous data streams.
 //
+// Deprecated: decoder moved to its own module, github.com/womat/manchester/decoder,
+// with the same API; change the import path. It is removed from golib in v2.
+//
 // The decoding process is divided into two main phases:
 //  1. Clock recovery: unless a bit clock is configured, the decoder finds the bit period
 //     in the incoming edges themselves and keeps following it, so it reads a sender of

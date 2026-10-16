@@ -3,6 +3,9 @@
 // non-blocking writes, and can be used with any GPIO implementation
 // that provides a SetValue(Level) error function.
 //
+// Deprecated: encoder moved to its own module, github.com/womat/manchester/encoder,
+// with the same API; change the import path. It is removed from golib in v2.
+//
 // # Example usage
 //
 //	func main() {
