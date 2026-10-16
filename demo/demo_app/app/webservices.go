@@ -54,10 +54,12 @@ func (app *App) StartWebServer() error {
 		return fmt.Errorf("failed to load TLS certificate: %w", err)
 	}
 
-	// Assign TLS config
+	// TLS 1.3 only, like the services. Every caller in this setup (browsers, Node-RED on
+	// Node 20, curl) speaks it, and 1.3 leaves no cipher suite to choose badly.
 	app.web.TLSConfig = &tls.Config{
 		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12}
+		MinVersion:   tls.VersionTLS13,
+	}
 
 	// Create listener
 	listener, err := net.Listen("tcp", app.web.Addr)
