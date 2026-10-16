@@ -1,5 +1,10 @@
 # mqtt
 
+> **Deprecated:** mqtt moved to its own module,
+> [github.com/womat/mqtt](https://github.com/womat/mqtt) (v1.0.0 or later), with the same
+> API — change the import path. It is removed from golib in v2. The code here stays
+> unchanged until then; further development happens in the new module.
+
 A thread-safe wrapper around the Eclipse Paho MQTT client for the one thing
 the services in this ecosystem do with MQTT: connect to a broker and publish
 telemetry. Reconnecting is left to Paho, publishing is synchronous, and the

@@ -135,7 +135,8 @@ disclosure only; `crypt/README.md` has the full security model, and the code is
 deliberately frozen (see the *Not addressed* section there). `jwt_util` mints and validates
 HS256 tokens and is what `web.WithAuth` delegates to — deprecated with JWT auth. All breaking changes
 wait for v2 and are listed in README.md, *Planned for v2*. `mqtt` is a thread-safe Paho wrapper
-with reconnect handling.
+with reconnect handling — **deprecated** since v1.5.5, it lives on as `github.com/womat/mqtt`
+(same API, v1.0.0; v0.x there is an unrelated 2021 draft), and v2 drops it here.
 
 ## Conventions
 

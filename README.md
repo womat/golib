@@ -26,7 +26,7 @@ Requires Go 1.27 or later.
 | [`jwt_util`](jwt_util/README.md) | Generation and validation of signed JWTs with issuer/subject/ID checks — **deprecated** with the JWT auth in `web` (use bearer tokens), removed in v2 |
 | [`crypt`](crypt/README.md) | bcrypt hashing, AES-256 symmetric encryption, Ed25519 key files, `EncryptedString` — **deprecated** (compiled-in key, no service uses it), removed in v2 |
 | [`xlog`](xlog/README.md) | `log/slog` wrapper with destination and level selection |
-| [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling |
+| [`mqtt`](mqtt/README.md) | Thread-safe Eclipse Paho client wrapper with reconnect handling — **deprecated**, moved to [github.com/womat/mqtt](https://github.com/womat/mqtt); removed in v2 |
 | [`keyvalue`](keyvalue/README.md) | **Deprecated**, moved to [github.com/womat/keyvalue](https://github.com/womat/keyvalue); removed in v2 |
 
 Every package carries a doc comment with a runnable `# Example usage` block, so
@@ -214,7 +214,7 @@ v2 changes the module path to `github.com/womat/golib/v2`, so every import chang
 anyway; breaking changes wait for it and are collected here. Until then, each item
 is marked `// Deprecated:` in v1 and keeps working.
 
-- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)), `gpio` with `rpi` and `rpiemu` (lives on as [github.com/womat/gpio](https://github.com/womat/gpio)), `manchester` with `encoder` and `decoder` (lives on as [github.com/womat/manchester](https://github.com/womat/manchester)) and `crypt`
+- remove `jwt_util`, `keyvalue` (lives on as [github.com/womat/keyvalue](https://github.com/womat/keyvalue)), `gpio` with `rpi` and `rpiemu` (lives on as [github.com/womat/gpio](https://github.com/womat/gpio)), `manchester` with `encoder` and `decoder` (lives on as [github.com/womat/manchester](https://github.com/womat/manchester)), `mqtt` (lives on as [github.com/womat/mqtt](https://github.com/womat/mqtt)) and `crypt`
 - `web`: remove `Config.ApiKey`, `Config.JwtSecret`, `Config.JwtID` and the `X-Api-Key` header; `Config.Tokens` is the only authentication
 - `demo/demo_app` moves to `Tokens`
 - split a package into its own module (`<pkg>/go.mod`, tags `<pkg>/vX.Y.Z`) only if it needs a version of its own by then

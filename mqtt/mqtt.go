@@ -3,6 +3,9 @@
 // This package wraps the Eclipse Paho MQTT library to provide a simple, safe interface
 // for connecting to a broker, publishing messages, and handling reconnections.
 //
+// Deprecated: mqtt moved to its own module, github.com/womat/mqtt, with the same
+// API; change the import path. It is removed from golib in v2.
+//
 // Features:
 //   - Thread-safe Handler for a single MQTT client
 //   - Automatic reconnect and retry on connection loss
