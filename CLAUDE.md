@@ -95,10 +95,16 @@ token file (`webserver.tokenFile`, relative to the config file) with the `demo_a
 subcommand, an `App` struct owning the wait group, HTTP server, context and restart/shutdown
 channels (`app/app.go`), signal-driven graceful shutdown and config reload on `SIGHUP` (which
 rereads the token file), and version/build metadata injected via `-ldflags`. Swagger is compiled
-in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`). A config that does not load or validate, or names a log
-destination that cannot be opened, ends it with exit code 78 (`EX_CONFIG`), which the unit in its
-README keeps systemd from restarting. When starting a new service in this ecosystem, copy this
-structure.
+in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`).
+
+Its lifecycle matches the five services (smartmeter's `cmd/main.go` and `app/app.go` are the
+closest): `run` subscribes the signals once for the process and hands them to every `App`; a
+`SIGHUP` is checked with `checkReload` before anything is torn down; a new config that fails to
+start falls back to `lastGood`; a web server that stops on its own restarts the `App` via
+`serverErr`; a failed `Run` releases what it acquired (`abort`). A config that does not load or
+validate at start ends it with exit code 78 (`EX_CONFIG`), which the unit in its README keeps
+systemd from restarting. When starting a new service in this ecosystem, copy this structure, and
+keep it in step with the services when one of them changes it.
 
 ## Conventions
 

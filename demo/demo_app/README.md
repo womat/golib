@@ -262,10 +262,11 @@ sudo systemctl start demo_app
 sudo systemctl status demo_app
 ```
 
-A config file that does not load or validate ends `demo_app` with exit code 78
-(`EX_CONFIG`), on start as on `systemctl reload`. `RestartPreventExitStatus=78`
-keeps systemd from restarting it every few seconds until the file is fixed;
-`systemctl status demo_app` shows why it stopped.
+A config file that does not load or validate stops `demo_app` at start with exit
+code 78 (`EX_CONFIG`). `RestartPreventExitStatus=78` keeps systemd from
+restarting it every few seconds until the file is fixed; `systemctl status
+demo_app` shows why it stopped. A reload never stops it, see
+[Hot-Reload](#hot-reload).
 
 ### 4. View logs
 
@@ -306,6 +307,17 @@ sudo systemctl reload demo_app
 # or
 kill -HUP $(pidof demo_app)
 ```
+
+A reload never ends the service:
+
+- The new config file is loaded and validated first. If that fails, the reload
+  is refused and the running configuration stays; the log says why.
+- If the new configuration validates but does not start (port or address not
+  available, certificate missing), `demo_app` goes back to the previous one.
+- A web server that stops on its own restarts the application the same way.
+
+The signals are subscribed once for the whole process, so a `SIGTERM` arriving
+during a reload still ends it gracefully.
 
 ---
 

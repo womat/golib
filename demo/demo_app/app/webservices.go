@@ -41,6 +41,7 @@ var embeddedKeyFile []byte
 // - Development fallback: embedded self-signed cert
 // - Non-blocking: runs in goroutine
 // - Graceful shutdown on app.ctx cancellation
+// - A server that stops on its own is reported on app.serverErr, which restarts the App
 func (app *App) StartWebServer() error {
 	// Set default timeouts
 	app.web.ReadTimeout = defaultReadTimeout
@@ -88,11 +89,9 @@ func (app *App) StartWebServer() error {
 
 		select {
 		case err := <-serverErrCh:
-			slog.Error("Webserver runtime error, stopping the application", "error", err)
-			// A service without its web server has no reason to keep running.
-			// The shutdown has to happen outside app.wg: shutdownProcedure
-			// waits for that very wait group.
-			go app.shutdownProcedure(ModeStop)
+			// The signal handler restarts the App. It must not be done from here: the
+			// restart waits for this goroutine via app.wg.
+			app.serverErr <- err
 		case <-app.ctx.Done():
 			ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
