@@ -16,7 +16,7 @@ setup). No `main` in the root module, no dependencies outside the standard libra
 `keyvalue`, `gpio`, `manchester`, `mqtt`, which live on as `github.com/womat/keyvalue`, `…/gpio`,
 `…/manchester` and `…/mqtt` with their history. `web.Config` has only `Tokens`; API key,
 `X-Api-Key`, JWT and `AppName` are gone. README.md, *Changes in v2*, is the migration guide.
-v1 ends at tag `v1.5.5`; the five services still import v1 until they are moved one by one. A v1
+v1 ends at tag `v1.5.5`; all five services import v2 since 16.10.2026. A v1
 fix would need a branch from that tag — there is none.
 
 ## Commands
