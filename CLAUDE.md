@@ -47,25 +47,16 @@ There is one branch, `main`: work is committed to it, and a version is an annota
 the whole library at once (`git tag -a vX.Y.Z -m "..."; git push --tags`). Use a short-lived
 feature branch for work that must not land on `main` yet.
 
-**This repository always authenticates as `womat`.** On the development machine the default
-SSH key for `github.com` belongs to another account (`itd-mathe`), so a push through
-`git@github.com:` either fails or lands under the wrong identity. The remote therefore goes
-through the `github-priv` host alias from `~/.ssh/config`, which pins the private key:
+**This repository always authenticates as `womat`, over SSH:** the remote is
+`git@github.com:womat/golib.git`, no host alias. On the development machine the default SSH key
+for `github.com` belongs to another account (`itd-mathe`); the key for `womat` comes from the git
+config of the checkout's directory (`core.sshCommand`, via `includeIf gitdir:`), which every
+private repository shares. An HTTPS remote — what `gh repo clone` creates — authenticates through
+the keychain with the other account and is refused; clone with
+`git clone git@github.com:womat/golib.git`, or fix a fresh clone with
+`git remote set-url origin git@github.com:womat/golib.git`.
 
-```
-Host github-priv
-    HostName     github.com
-    User         git
-    IdentityFile ~/.ssh/privat_ed25519
-```
-
-`.git/config` is not versioned, so a fresh clone needs this once:
-
-```sh
-git remote set-url origin git@github-priv:womat/golib.git
-```
-
-Verify with `ssh -T github-priv` (must greet `womat`) and `git push --dry-run origin main`.
+Verify with `git push --dry-run origin main`.
 
 ## Architecture
 
