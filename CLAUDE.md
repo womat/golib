@@ -102,15 +102,14 @@ validate, a log destination that cannot be opened at the first start, and a star
 `app.ErrPermanent` (a certificate that cannot be loaded); the unit in its README keeps systemd
 from restarting after it. `VERSION` comes from the Git tag via `-ldflags`.
 
-Deliberately different from s0meter, because the demo_app does it better and s0meter should
-follow: `${NAME}` that is not set is an error, not an empty string, and comments are left out
-of the expansion; `Validate` checks `logDestination`, `listenHost` and both IP lists
-(`web.ValidateIPList`); prod requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a
-missing key like a missing certificate. From golib v2.1.0, s0meter still needs
-`web.CheckTokenFile` in setup and `web.ValidateIPList` in `Validate`; all five services still
-need to drop their `OPTIONS /` route (`WithCORS` answers preflights), after which
-`HandlePreflight` is unused. What is s0meter's own (meters, MQTT, data file, the web page) stays
-there.
+s0meter took over on 22.10.2026, with golib v2.1.0, what the demo_app did better: `${NAME}`
+that is not set is an error, not an empty string, and comments are left out of the expansion;
+`Validate` checks `logDestination`, `listenHost` and both IP lists (`web.ValidateIPList`); prod
+requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a missing key like a missing
+certificate; setup warns via `web.CheckTokenFile`; the `OPTIONS /` route is gone (`WithCORS`
+answers preflights). The other four services still need to drop their `OPTIONS /` route, after
+which `HandlePreflight` is unused. What is s0meter's own (meters, MQTT, data file, the web page)
+stays there.
 
 Exported API that no service uses (audit of 22.10.2026) stays in v2 and is collected as v3
 candidates under *Not addressed* in `web/README.md` and `xlog/README.md`. Search the services'

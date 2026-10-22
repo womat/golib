@@ -307,8 +307,8 @@ Known and deliberately left alone:
   version and five changed import paths; they are the candidates for a v3.
   `HashToken` and `AddTokenToFile` are not: the services' tests build their
   tokens and token files with them.
-- **`HandlePreflight` stays while the services use it.** All five still
-  register `OPTIONS /` with it, which behind `WithCORS` turns 404 into 405.
+- **`HandlePreflight` stays while the services use it.** All but s0meter
+  still register `OPTIONS /` with it, which behind `WithCORS` turns 404 into 405.
   Once they drop that route, it can go with the v3 candidates.
 - **The success level defaults to `Info`, though every service sets
   `WithSuccessLevel(slog.LevelDebug)`.** Changing the default changes the log
