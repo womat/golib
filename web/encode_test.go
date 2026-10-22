@@ -2,6 +2,7 @@ package web
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -45,6 +46,27 @@ func TestEncodeMarshalFailure(t *testing.T) {
 	}
 	if !json.Valid(rec.Body.Bytes()) {
 		t.Errorf("the fallback body is not valid JSON: %q", rec.Body.String())
+	}
+}
+
+// secretMarshaler fails with an error that must not reach the client.
+type secretMarshaler struct{}
+
+func (secretMarshaler) MarshalJSON() ([]byte, error) {
+	return nil, errors.New("dial tcp 10.0.0.5:5432: connection refused")
+}
+
+func TestEncodeMarshalFailureHidesTheError(t *testing.T) {
+	rec := httptest.NewRecorder()
+
+	Encode(rec, http.StatusOK, secretMarshaler{})
+
+	var got ApiError
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("body is not an ApiError: %v, %q", err, rec.Body.String())
+	}
+	if got.Error != ErrInternal.Error() {
+		t.Errorf("error = %q, want %q", got.Error, ErrInternal.Error())
 	}
 }
 

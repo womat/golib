@@ -11,24 +11,26 @@ import (
 // is refused rather than buffered, so a single request cannot exhaust memory.
 const maxRequestBody = 1 << 20 // 1 MiB
 
+// internalErrorBody is the response when v cannot be marshalled: ErrInternal
+// as an ApiError, fixed so that it cannot fail itself.
+var internalErrorBody = []byte(`{"error":"` + ErrInternal.Error() + `"}`)
+
 // Encode writes v as JSON with the given HTTP status code.
-// On marshal failure, responds with 500 InternalServerError.
+//
+// If v cannot be marshalled, it responds with 500 and ErrInternal instead. The
+// marshal error is not sent: a custom MarshalJSON may wrap anything, addresses
+// and file names included, just like the errors WriteError keeps from 5xx
+// responses.
 func Encode[T any](w http.ResponseWriter, status int, v T) {
 
 	w.Header().Set("Content-Type", "application/json")
 
 	resp, err := json.Marshal(v)
 	if err != nil {
-		if resp, err = json.Marshal(NewApiError(err)); err != nil {
-			// NewApiError itself failed to marshal – use a static fallback
-			// so the client always receives a valid JSON body.
-			resp = []byte(`{"error":"internal server error"}`)
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		w.WriteHeader(status)
+		resp, status = internalErrorBody, http.StatusInternalServerError
 	}
 
+	w.WriteHeader(status)
 	_, _ = w.Write(resp)
 }
 

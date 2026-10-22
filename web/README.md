@@ -35,7 +35,7 @@ both sections before putting this on a public interface.
 | `func WithSuccessLevel(level slog.Level) LogOption` | level for responses below 400, e.g. `Debug` for a polled service; from 400 the status still decides |
 | `func ContextWithLogger(ctx context.Context, logger *slog.Logger) context.Context` | put a logger where `WriteError` and `WithIPFilter` find it |
 | `func LoggerFrom(ctx context.Context) *slog.Logger` | that logger, or `slog.Default()` when there is none |
-| `func Encode[T any](w http.ResponseWriter, status int, v T)` | JSON response; a marshal failure still yields valid JSON and a 500 |
+| `func Encode[T any](w http.ResponseWriter, status int, v T)` | JSON response; a marshal failure yields a 500 with `ErrInternal`, never the marshal error |
 | `func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error)` | JSON request body, limited to 1 MiB, trailing data refused |
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
@@ -255,6 +255,9 @@ Known and deliberately left alone:
   work is almost always used; body logging is opt-in and meant for debugging.
 - **`logResponse` does not implement `io.ReaderFrom`.** With this middleware in
   the chain, `http.ServeFile` and `io.Copy` lose the `sendfile` path.
+- **`Encode` does not log a marshal error.** It has no request to find a
+  logger in; the client gets `ErrInternal`, the cause is lost. A value that
+  cannot be marshalled is a programming error that shows in the first test.
 - **The hijack error is not a sentinel.** `logResponse.Hijack` returns a plain
   `errors.New` when the underlying writer cannot be hijacked.
 - **`readBodyPrefix` drops what it read when reading fails**, leaving the
