@@ -48,6 +48,7 @@ func TestWithIPFilter(t *testing.T) {
 		{"ipv6 exact", []string{"::1"}, nil, "[::1]:1234", http.StatusOK},
 		{"ipv6 cidr", []string{"2001:db8::/32"}, nil, "[2001:db8::1]:1234", http.StatusOK},
 		{"ipv4 mapped ipv6", []string{"127.0.0.1"}, nil, "[::ffff:127.0.0.1]:1234", http.StatusOK},
+		{"ipv4 mapped ipv6 in cidr", []string{"10.0.0.0/8"}, nil, "[::ffff:10.1.2.3]:1234", http.StatusOK},
 	}
 
 	for _, tt := range tests {

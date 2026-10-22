@@ -2,11 +2,13 @@ package web
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testLogger() (*slog.Logger, *bytes.Buffer) {
@@ -138,6 +140,57 @@ func TestWithLoggingKeepsFlusher(t *testing.T) {
 	if !flushed {
 		t.Error("the handler could not flush")
 	}
+}
+
+// A WebSocket upgrade hijacks the connection, and http.ResponseController
+// reaches the server's writer through Unwrap; both must survive the wrapper.
+func TestWithLoggingKeepsHijackerAndUnwrap(t *testing.T) {
+	logger, _ := testLogger()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// logResponse has no SetWriteDeadline; only Unwrap gets there.
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+			t.Errorf("SetWriteDeadline: %v", err)
+		}
+		h, ok := w.(http.Hijacker)
+		if !ok {
+			t.Error("the ResponseWriter is no longer an http.Hijacker - WebSocket upgrades break")
+			return
+		}
+		conn, buf, err := h.Hijack()
+		if err != nil {
+			t.Errorf("Hijack: %v", err)
+			return
+		}
+		defer func() { _ = conn.Close() }()
+		_, _ = buf.WriteString("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+		_ = buf.Flush()
+	})
+
+	srv := httptest.NewServer(WithLogging(handler, logger))
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if body, _ := io.ReadAll(resp.Body); string(body) != "ok" {
+		t.Errorf("body = %q, want the one written to the hijacked connection", body)
+	}
+}
+
+func TestWithLoggingHijackWithoutHijacker(t *testing.T) {
+	logger, _ := testLogger()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if _, _, err := w.(http.Hijacker).Hijack(); err == nil {
+			t.Error("Hijack on a writer that cannot be hijacked succeeded")
+		}
+	})
+
+	// httptest.ResponseRecorder cannot be hijacked.
+	WithLogging(handler, logger).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
 }
 
 func TestWithLoggingRecordsStatusWithoutExplicitWriteHeader(t *testing.T) {
