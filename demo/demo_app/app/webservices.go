@@ -19,16 +19,8 @@ const (
 	defaultIdleTimeout  = 120 * time.Second
 )
 
-// to generate new self-signed certs for development, run:
-// openssl req -x509 -newkey rsa:4096 -keyout dev_key.pem -out dev_cert.pem -days 365 -nodes -subj "/CN=localhost"
-// mkdir -p certs
-// cd certs
-//
-// # 1. generate Private Key
-// openssl genrsa -out dev_key.pem 2048
-//
-// # 2. generate Self-signed Certificate
-// openssl req -new -x509 -key dev_key.pem -out dev_cert.pem -days 365 -subj "/C=AT/ST=Vienna/L=Vienna/O=Dev/OU=Dev/CN=localhost"
+// The development pair is generated, not checked in: run "make ensure_dev_certs"
+// before the first build. It is only used in DevEnv, see loadTLSCert.
 
 //go:embed certs/dev_cert.pem
 var embeddedCertFile []byte

@@ -1,18 +1,3 @@
-// Package app is the service skeleton this template is about: configuration
-// with defaults and environment expansion, an App that owns the HTTP server,
-// wait group, context and the restart/shutdown channels, signal-driven
-// graceful shutdown and config reload, and the route table below.
-//
-// SetupRoutes registers:
-//   - GET /version - public, no authentication
-//   - GET /health - protected, a bearer token from the token file via web.WithAuth
-//   - OPTIONS / - the CORS preflight, as its own route so it never meets the
-//     authentication middleware
-//   - GET /swagger/ - only in builds made with -tags swagger
-//
-// and wraps the mux in web.WithCORS, web.WithIPFilter and web.WithLogging, in
-// that order, handing all three the same logger. It must be called during
-// startup, before the HTTP server starts.
 package app
 
 import (
@@ -22,7 +7,16 @@ import (
 	"github.com/womat/golib/v2/web"
 )
 
-// SetupRoutes configures all HTTP routes and global middleware for the application.
+// SetupRoutes configures all HTTP routes and global middleware for the application:
+//   - GET /version - public, no authentication
+//   - GET /health - protected, a bearer token from the token file via web.WithAuth
+//   - OPTIONS / - the CORS preflight, as its own route so it never meets the
+//     authentication middleware
+//   - GET /swagger/ - only in builds made with -tags swagger
+//
+// It wraps the mux in web.WithCORS, web.WithIPFilter and web.WithLogging, in
+// that order, handing all three the same logger. It must be called during
+// startup, before the HTTP server starts.
 func (app *App) SetupRoutes() {
 	webCfg := web.Config{Tokens: app.config.Webserver.Tokens}
 

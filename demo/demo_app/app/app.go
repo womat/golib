@@ -1,8 +1,7 @@
-// Package app provides the main application.
-//
-// It initializes S0 meters, handles MQTT publishing, periodic backups,
-// web server startup, and OS signal handling for graceful shutdowns
-// or restarts.
+// Package app is the service skeleton this template is about: configuration
+// with defaults and environment expansion, an App that owns the HTTP server,
+// wait group, context and the restart/shutdown channels, signal-driven
+// graceful shutdown and config reload, and the route table in SetupRoutes.
 //
 // Usage:
 //
@@ -46,7 +45,6 @@ const (
 	ModeRestart = 1
 )
 
-// App is the main application struct.
 // App is where the application is wired up.
 type App struct {
 	wg          sync.WaitGroup   // wait group to track running webserver
