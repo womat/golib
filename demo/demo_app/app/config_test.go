@@ -298,6 +298,11 @@ func TestSplitYAMLComment(t *testing.T) {
 		{"  - 'a # b' # c", "  - 'a # b' ", "# c"},
 		{`key: [ 'a # b', "c # d" ] # e`, `key: [ 'a # b', "c # d" ] `, "# e"},
 		{"key: {k: 'a # b'} # c", "key: {k: 'a # b'} ", "# c"},
+		{`key: !!str "a # b" # c`, `key: !!str "a # b" `, "# c"},
+		{"key: &c 'a # b' # c", "key: &c 'a # b' ", "# c"},
+		{`  - &c !!str "a # b" # c`, `  - &c !!str "a # b" `, "# c"},
+		{`!!str "a # b" # c`, `!!str "a # b" `, "# c"},
+		{"key: fish &chips 'a # b'", "key: fish &chips 'a ", "# b'"},
 	}
 
 	for _, tt := range tests {

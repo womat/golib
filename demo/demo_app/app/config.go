@@ -197,9 +197,17 @@ func splitYAMLComment(line string) (value, comment string) {
 
 // opensScalar reports whether a quote that follows before starts a quoted
 // scalar: at the start of the line, behind a flow indicator "[", "{" or ",",
-// or behind ":", "-" or "?" and a blank.
+// or behind ":", "-" or "?" and a blank. A tag (!!str) or an anchor (&name)
+// in between belongs to the value and is skipped.
 func opensScalar(before string) bool {
 	trimmed := strings.TrimRight(before, " \t")
+	for {
+		i := strings.LastIndexAny(trimmed, " \t")
+		if word := trimmed[i+1:]; word == "" || (word[0] != '!' && word[0] != '&') {
+			break
+		}
+		trimmed = strings.TrimRight(trimmed[:i+1], " \t")
+	}
 	if trimmed == "" {
 		return true
 	}
