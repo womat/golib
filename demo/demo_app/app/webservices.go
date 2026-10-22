@@ -57,11 +57,13 @@ func (app *App) startWebServer() error {
 
 	app.web.TLSConfig = newTLSConfig(cert)
 
-	// An IPv4 listenHost such as 0.0.0.0 listens on IPv4 only. With "tcp" Linux would open a
-	// dual-stack socket, and IPv6 clients would bypass blockedIPs and allowedIPs written as
-	// IPv4. Set listenHost to "::" to serve IPv6 as well.
+	// An IPv4 listenHost such as 0.0.0.0, and an empty one, listens on IPv4 only. With "tcp"
+	// Linux would open a dual-stack socket, and IPv6 clients would bypass blockedIPs and
+	// allowedIPs written as IPv4. Set listenHost to "::" to serve IPv6 as well.
 	network := "tcp"
-	if ip := net.ParseIP(app.config.Webserver.ListenHost); ip != nil && ip.To4() != nil {
+	if host := app.config.Webserver.ListenHost; host == "" {
+		network = "tcp4"
+	} else if ip := net.ParseIP(host); ip != nil && ip.To4() != nil {
 		network = "tcp4"
 	}
 	listener, err := net.Listen(network, app.web.Addr)

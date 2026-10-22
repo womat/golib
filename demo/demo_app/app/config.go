@@ -307,7 +307,7 @@ func validateLogDestination(dest string) error {
 	return nil
 }
 
-// validateListenHost accepts an empty host (all interfaces), any literal IP and
+// validateListenHost accepts an empty host (all IPv4 interfaces), any literal IP and
 // localhost. A name that has to be resolved is refused, because a DNS lookup at
 // startup is a dependency this service does not want.
 func validateListenHost(host string) error {

@@ -219,21 +219,25 @@ func TestRunMarksCertificateErrorsPermanent(t *testing.T) {
 	}
 }
 
-// An IPv4 listenHost listens on IPv4 only, so an IPv6 client cannot bypass IP lists written as
-// IPv4.
+// An IPv4 listenHost, and an empty one, listens on IPv4 only, so an IPv6 client cannot bypass
+// IP lists written as IPv4.
 func TestIPv4ListenHostListensOnIPv4Only(t *testing.T) {
-	signals := make(chan os.Signal, 1)
-	cfg := serverConfig(t, 0)
-	cfg.Webserver.ListenHost = "0.0.0.0"
-	a, err := New(cfg, signals, nil).Run()
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	defer func() { signals <- syscall.SIGTERM; <-a.Done() }()
+	for _, host := range []string{"0.0.0.0", ""} {
+		t.Run(host, func(t *testing.T) {
+			signals := make(chan os.Signal, 1)
+			cfg := serverConfig(t, 0)
+			cfg.Webserver.ListenHost = host
+			a, err := New(cfg, signals, nil).Run()
+			if err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			defer func() { signals <- syscall.SIGTERM; <-a.Done() }()
 
-	_, port, _ := net.SplitHostPort(a.web.Addr)
-	if conn, err := net.DialTimeout("tcp6", net.JoinHostPort("::1", port), time.Second); err == nil {
-		_ = conn.Close()
-		t.Error("the server answers on IPv6")
+			_, port, _ := net.SplitHostPort(a.web.Addr)
+			if conn, err := net.DialTimeout("tcp6", net.JoinHostPort("::1", port), time.Second); err == nil {
+				_ = conn.Close()
+				t.Error("the server answers on IPv6")
+			}
+		})
 	}
 }
