@@ -169,22 +169,48 @@ func expandEnv(content string) (string, error) {
 //
 // In YAML a "#" starts a comment when it is at the start of the line or
 // preceded by a blank, and never inside a quoted scalar - which is exactly what
-// is tracked here.
+// is tracked here. A quote opens a scalar only where a value begins, so the
+// apostrophe in a plain value like it's does not hide the comment behind it.
 func splitYAMLComment(line string) (value, comment string) {
-	var inSingle, inDouble bool
+	var quote byte // the quote of the open scalar, 0 outside of one
 
-	for i, r := range line {
+	for i := 0; i < len(line); i++ {
+		c := line[i]
 		switch {
-		case r == '\'' && !inDouble:
-			inSingle = !inSingle
-		case r == '"' && !inSingle:
-			inDouble = !inDouble
-		case r == '#' && !inSingle && !inDouble && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
+		case quote == '"' && c == '\\':
+			i++ // an escaped character cannot close the scalar
+		case quote != 0 && c == quote:
+			if quote == '\'' && i+1 < len(line) && line[i+1] == '\'' {
+				i++ // '' is a quote inside a single-quoted scalar
+			} else {
+				quote = 0
+			}
+		case quote == 0 && (c == '\'' || c == '"') && opensScalar(line[:i]):
+			quote = c
+		case quote == 0 && c == '#' && (i == 0 || line[i-1] == ' ' || line[i-1] == '\t'):
 			return line[:i], line[i:]
 		}
 	}
 
 	return line, ""
+}
+
+// opensScalar reports whether a quote that follows before starts a quoted
+// scalar: at the start of the line, behind a flow indicator "[", "{" or ",",
+// or behind ":", "-" or "?" and a blank.
+func opensScalar(before string) bool {
+	trimmed := strings.TrimRight(before, " \t")
+	if trimmed == "" {
+		return true
+	}
+
+	switch trimmed[len(trimmed)-1] {
+	case '[', '{', ',':
+		return true
+	case ':', '-', '?':
+		return len(trimmed) < len(before)
+	}
+	return false
 }
 
 // IsDevEnv returns true if the environment is development.

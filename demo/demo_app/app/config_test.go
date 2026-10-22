@@ -266,6 +266,50 @@ func TestLoadConfigExpandsInsideQuotedValueWithHash(t *testing.T) {
 	}
 }
 
+func TestLoadConfigIgnoresCommentAfterApostrophe(t *testing.T) {
+	// The apostrophe is part of a plain value, not the start of a quoted one,
+	// so the "#" behind it still starts a comment.
+	os.Unsetenv("DEMO_APP_OLD_CERT")
+
+	path := writeConfig(t, "webserver:\n  certFile: wolfgang's.pem # was ${DEMO_APP_OLD_CERT}\n")
+
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	if cfg.Webserver.CertFile != "wolfgang's.pem" {
+		t.Errorf("CertFile = %q, want wolfgang's.pem", cfg.Webserver.CertFile)
+	}
+}
+
+func TestSplitYAMLComment(t *testing.T) {
+	tests := []struct {
+		line, value, comment string
+	}{
+		{"# whole line", "", "# whole line"},
+		{"key: value # c", "key: value ", "# c"},
+		{"key: a#b", "key: a#b", ""},
+		{`key: "a # b" # c`, `key: "a # b" `, "# c"},
+		{"key: 'a # b' # c", "key: 'a # b' ", "# c"},
+		{"key: it's # c", "key: it's ", "# c"},
+		{`key: say "hi # there"`, `key: say "hi `, `# there"`},
+		{`key: "a\" # b" # c`, `key: "a\" # b" `, "# c"},
+		{"key: 'it''s # x' # c", "key: 'it''s # x' ", "# c"},
+		{"  - 'a # b' # c", "  - 'a # b' ", "# c"},
+		{`key: [ 'a # b', "c # d" ] # e`, `key: [ 'a # b', "c # d" ] `, "# e"},
+		{"key: {k: 'a # b'} # c", "key: {k: 'a # b'} ", "# c"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			value, comment := splitYAMLComment(tt.line)
+			if value != tt.value || comment != tt.comment {
+				t.Errorf("got (%q, %q), want (%q, %q)", value, comment, tt.value, tt.comment)
+			}
+		})
+	}
+}
+
 func TestLoadConfigReadsTheTokenFile(t *testing.T) {
 	dir := t.TempDir()
 	hash := web.HashToken("the-token")
