@@ -209,6 +209,23 @@ func TestWithLoggingRecordsStatusWithoutExplicitWriteHeader(t *testing.T) {
 	}
 }
 
+// net/http ignores a WriteHeader after the first Write; the log must show the
+// 200 that was sent, not the status that was asked for too late.
+func TestWithLoggingIgnoresWriteHeaderAfterWrite(t *testing.T) {
+	logger, buf := testLogger()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte("sent with 200"))
+		w.WriteHeader(http.StatusInternalServerError)
+	})
+
+	WithLogging(handler, logger).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if !strings.Contains(buf.String(), "response.status=200") {
+		t.Errorf("want status 200 in the log:\n%s", buf)
+	}
+}
+
 // TestWithLoggingLevelFollowsStatus is the fix for an access log that was
 // written at debug level and therefore invisible in production.
 func TestWithLoggingLevelFollowsStatus(t *testing.T) {

@@ -109,11 +109,9 @@ func (lr *logResponse) WriteHeader(status int) {
 
 // Write captures size and, up to the limit, the response body.
 func (lr *logResponse) Write(b []byte) (int, error) {
-	if !lr.wroteHeader {
-		// An implicit 200, as net/http would send it.
-		lr.status = http.StatusOK
-		lr.wroteHeader = true
-	}
+	// The first Write sends the header, with the status set so far - 200 if
+	// there was no WriteHeader; a WriteHeader after it no longer counts.
+	lr.wroteHeader = true
 
 	if room := lr.bodyLimit - lr.body.Len(); room > 0 {
 		lr.body.Write(b[:min(room, len(b))])
