@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+
+	"github.com/womat/golib/v2/web"
 )
 
 // VERSION holds the version information with the following logic in mind
@@ -127,6 +129,12 @@ func (app *App) Run() (*App, error) {
 func (app *App) Init() (err error) {
 
 	// here initialize your services
+
+	// Checked on every start and reload, so a fixed layout stops the warning
+	// without a restart.
+	if err := web.CheckTokenFile(app.config.Webserver.TokenFile); err != nil {
+		slog.Warn("Token file is not protected", "error", err)
+	}
 
 	// initRoutes should always be called at the end
 	slog.Debug("Initializing API routes")

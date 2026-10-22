@@ -32,6 +32,8 @@ var (
 	ErrTokenNotFound = errors.New("token name not found")
 	// ErrInvalidTokenName is returned for a name the token file cannot hold.
 	ErrInvalidTokenName = errors.New("invalid token name")
+	// ErrTokenFileWritable is returned by CheckTokenFile.
+	ErrTokenFileWritable = errors.New("token file can be changed by the service")
 )
 
 // tokenBytes is the entropy of a generated token. 32 bytes put guessing out of
@@ -273,4 +275,31 @@ func copyOwner(f *os.File, info fs.FileInfo) error {
 		return nil // nothing to copy, or already right and needs no privilege
 	}
 	return f.Chown(uid, gid)
+}
+
+// CheckTokenFile reports, with ErrTokenFileWritable, whether the running
+// process could change the token file at path - and so add a token of its own.
+// It could if it owns the file or its directory, which lets it chmod them, or
+// if it may write either of them; whoever can write the directory can replace
+// the file. A service calls it at start with the token file it reads, and
+// logs a failure as a warning: the service still works, but its layout lets
+// a compromised service grant itself access.
+//
+// It checks nothing when the process runs as root, which can change every
+// file anyway, and nothing on platforms without Unix permissions. A file that
+// cannot be stat'ed is reported with that error.
+func CheckTokenFile(path string) error {
+	for _, target := range []struct{ path, what string }{
+		{path, "the file"},
+		{filepath.Dir(path), "its directory"},
+	} {
+		reason, err := canChange(target.path)
+		if err != nil {
+			return err
+		}
+		if reason != "" {
+			return fmt.Errorf("%s: %w: %s %s", path, ErrTokenFileWritable, target.what, reason)
+		}
+	}
+	return nil
 }

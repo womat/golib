@@ -19,6 +19,7 @@ both sections before putting this on a public interface.
 | `type Config struct{ Tokens []Token }` | the accepted tokens; an empty `Config` rejects everything |
 | `type Token struct{ Name string; Hash [32]byte }` | one accepted bearer token: the name of its caller and the SHA-256 of the token |
 | `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line, a duplicate name or a duplicate hash is an error |
+| `func CheckTokenFile(path string) error` | `ErrTokenFileWritable` if the running process could change the token file or its directory; log it as a warning |
 | `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
 | `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -` |
 | `type TokenCommand struct{ … }` / `func (TokenCommand) Run(args []string) int` | the `token add/remove/list` subcommand for a service's `main` |
@@ -42,7 +43,8 @@ both sections before putting this on a public interface.
 | `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: the name of the token |
 
 Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`, and for
-token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. They
+token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`,
+`ErrTokenFileWritable`. They
 carry no package prefix in their message (`"not authorized"`,
 `"forbidden"`, `"internal server error"`) — the text reaches the client, where a
 prefix would leak the implementation.
@@ -67,7 +69,17 @@ credentials.
 ```go
 tokens, err := web.ReadTokenFile(cfg.Webserver.TokenFile) // stop on error
 webCfg := web.Config{Tokens: tokens}
+
+if err := web.CheckTokenFile(cfg.Webserver.TokenFile); err != nil {
+    slog.Warn("Token file is not protected", "error", err) // keep running
+}
 ```
+
+`CheckTokenFile` catches the layout that breaks the last rule: the service
+owns the file or its directory, or may write either. It is a warning, not an
+error, because a development checkout always looks like that, and because an
+old layout should not stop a running service on upgrade. Run as root, it
+checks nothing.
 
 `WithAuth` hashes the bearer token of a request and compares it with every
 entry, in constant time. A match puts the token's name into the request, and

@@ -27,6 +27,9 @@
 //	    if err != nil {
 //	        log.Fatal(err)
 //	    }
+//	    if err := web.CheckTokenFile("/opt/demo/etc/token-hashes"); err != nil {
+//	        logger.Warn("Token file is not protected", "error", err)
+//	    }
 //	    cfg := web.Config{Tokens: tokens}
 //
 //	    mux := http.NewServeMux()
