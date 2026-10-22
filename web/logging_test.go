@@ -2,6 +2,7 @@ package web
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -308,5 +309,42 @@ func TestWithLoggingSeedsTheContext(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "from the handler") {
 		t.Errorf("the handler did not find the logger in the context:\n%s", buf)
+	}
+}
+
+// failingBody yields data, then fails, like a client that drops the
+// connection halfway through its upload.
+type failingBody struct{ data *strings.Reader }
+
+func (b failingBody) Read(p []byte) (int, error) {
+	if b.data.Len() == 0 {
+		return 0, io.ErrUnexpectedEOF
+	}
+	return b.data.Read(p)
+}
+
+func (failingBody) Close() error { return nil }
+
+func TestWithLoggingKeepsTheBodyWhenReadingFails(t *testing.T) {
+	logger, _ := testLogger()
+
+	var got string
+	var gotErr error
+	handler := http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		b, err := io.ReadAll(r.Body)
+		got, gotErr = string(b), err
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/", nil)
+	req.Header.Set("Content-Type", "application/json")
+	req.Body = failingBody{strings.NewReader(`{"a":`)}
+
+	WithLogging(handler, logger, WithBodyLogging(100)).ServeHTTP(httptest.NewRecorder(), req)
+
+	if got != `{"a":` {
+		t.Errorf("handler read %q, want what came before the failure", got)
+	}
+	if !errors.Is(gotErr, io.ErrUnexpectedEOF) {
+		t.Errorf("handler got err %v, want the read error", gotErr)
 	}
 }

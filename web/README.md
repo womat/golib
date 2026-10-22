@@ -284,7 +284,5 @@ Known and deliberately left alone:
   cannot be marshalled is a programming error that shows in the first test.
 - **The hijack error is not a sentinel.** `logResponse.Hijack` returns a plain
   `errors.New` when the underlying writer cannot be hijacked.
-- **`readBodyPrefix` drops what it read when reading fails**, leaving the
-  handler with a partially consumed body. Only on a read error, and silently.
 - **`WithCORS` sets `Allow-Methods`, `Allow-Headers` and `Max-Age` even when the
   origin is not on the list** and `Allow-Origin` is deliberately withheld.

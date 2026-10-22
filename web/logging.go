@@ -262,12 +262,11 @@ func recordCaller(ctx context.Context, name string) {
 }
 
 // readBodyPrefix returns at most limit bytes of the request body and puts the
-// whole body back, so the handler still sees all of it.
+// whole body back, so the handler still sees all of it. What was read before a
+// read error is put back as well; the handler meets the error itself, on the
+// rest of the body.
 func readBodyPrefix(r *http.Request, limit int) []byte {
-	body, err := io.ReadAll(io.LimitReader(r.Body, int64(limit)))
-	if err != nil {
-		return nil
-	}
+	body, _ := io.ReadAll(io.LimitReader(r.Body, int64(limit)))
 
 	r.Body = struct {
 		io.Reader
