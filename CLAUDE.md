@@ -106,10 +106,15 @@ Deliberately different from s0meter, because the demo_app does it better and s0m
 follow: `${NAME}` that is not set is an error, not an empty string, and comments are left out
 of the expansion; `Validate` checks `logDestination`, `listenHost` and both IP lists
 (`web.ValidateIPList`); prod requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a
-missing key like a missing certificate. From golib after v2.0.0, s0meter still needs: no
-`OPTIONS /` route (`WithCORS` answers preflights), `web.CheckTokenFile` in setup,
-`web.ValidateIPList` in `Validate`. What is s0meter's own (meters, MQTT, data file, the web page,
-`WithSuccessLevel`) stays there. When starting a new service in this ecosystem, copy this
+missing key like a missing certificate. From golib after v2.0.0, s0meter still needs
+`web.CheckTokenFile` in setup and `web.ValidateIPList` in `Validate`; all five services still
+need to drop their `OPTIONS /` route (`WithCORS` answers preflights), after which
+`HandlePreflight` is unused. What is s0meter's own (meters, MQTT, data file, the web page) stays
+there.
+
+Exported API that no service uses (audit of 22.10.2026) stays in v2 and is collected as v3
+candidates under *Not addressed* in `web/README.md` and `xlog/README.md`. Search the services'
+tests too before calling an export unused — `HashToken` looks unused until you do. When starting a new service in this ecosystem, copy this
 structure, and keep it in step with the services when one of them changes it.
 
 ## Conventions

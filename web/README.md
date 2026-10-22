@@ -291,3 +291,21 @@ Known and deliberately left alone:
   `errors.New` when the underlying writer cannot be hijacked.
 - **`WithCORS` sets `Allow-Methods`, `Allow-Headers` and `Max-Age` even when the
   origin is not on the list** and `Allow-Origin` is deliberately withheld.
+- **Exported API that no service uses stays in v2.** An audit on 22.10.2026
+  (the five services, tests included, and `demo_app`) found these unused
+  outside `web`: the options `WithBodyLogging`, `WithLogLevel`,
+  `WithAllowedOrigins`, `WithAllowedHeaders`; `Decode`, `NewApiError`;
+  `ContextWithLogger`, `LoggerFrom`; and, used only by `TokenCommand`,
+  `NewToken`, `ValidTokenName`, `RemoveTokenFromFile`, `ErrTokenExists`,
+  `ErrTokenNotFound`, `ErrInvalidTokenName`, `ErrTokenFileWritable`.
+  Removing or unexporting them breaks v2 and saves no code worth a new major
+  version and five changed import paths; they are the candidates for a v3.
+  `HashToken` and `AddTokenToFile` are not: the services' tests build their
+  tokens and token files with them.
+- **`HandlePreflight` stays while the services use it.** All five still
+  register `OPTIONS /` with it, which behind `WithCORS` turns 404 into 405.
+  Once they drop that route, it can go with the v3 candidates.
+- **The success level defaults to `Info`, though every service sets
+  `WithSuccessLevel(slog.LevelDebug)`.** Changing the default changes the log
+  of any caller that relies on it; a v3 can make `Debug` the default and drop
+  the option.

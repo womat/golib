@@ -98,5 +98,8 @@ Known and deliberately left alone:
   means building a new logger, which in `demo_app` happens on config reload.
 - **`Init` does not set the default logger.** Callers that want
   `slog.Info(...)` to work package-wide must call `slog.SetDefault` themselves.
+- **`WithSource` stays in v2, though no service uses it** (audit of
+  22.10.2026). Removing it breaks v2 and saves a few lines; it is a candidate
+  for a v3, with the unused parts of `web` listed in its README.
 
 Full API: `go doc github.com/womat/golib/v2/xlog`.
