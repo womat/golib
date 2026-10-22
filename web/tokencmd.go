@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"slices"
 )
 
 // TokenCommand is the "token" subcommand of a service: it creates and removes
@@ -90,56 +91,58 @@ func (c TokenCommand) Run(args []string) int {
 		pos, rest = append(pos, rest[0]), rest[1:]
 	}
 
-	fail := func(err error) int {
-		stderr.printf("%s token: %v\n", c.App, err)
-		return 1
-	}
-
+	var err error
 	switch {
 	case len(pos) == 2 && pos[0] == "add":
-		return c.add(stdout, stderr, *configPath, pos[1], *dryRun, fail)
+		err = c.add(stdout, stderr, *configPath, pos[1], *dryRun)
 	case len(pos) == 2 && pos[0] == "remove":
-		return c.remove(stderr, *configPath, pos[1], *dryRun, fail)
+		err = c.remove(stderr, *configPath, pos[1], *dryRun)
 	case len(pos) == 1 && pos[0] == "list":
-		return c.list(stdout, stderr, *configPath, fail)
+		err = c.list(stdout, stderr, *configPath)
 	default:
 		flags.Usage()
 		return 2
 	}
+
+	if err != nil {
+		stderr.printf("%s token: %v\n", c.App, err)
+		return 1
+	}
+	return 0
 }
 
-func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryRun bool, fail func(error) int) int {
+func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryRun bool) error {
 	if !ValidTokenName(name) {
-		return fail(fmt.Errorf("%w %q: 1 to 64 letters, digits, '.', '_' or '-'", ErrInvalidTokenName, name))
+		return fmt.Errorf("%w %q: 1 to 64 letters, digits, '.', '_' or '-'", ErrInvalidTokenName, name)
 	}
 
 	token, err := NewToken()
 	if err != nil {
-		return fail(err)
+		return err
 	}
 	hash := HashToken(token)
 
 	if dryRun {
 		stdout.printf("%s\n", token)
 		if stdout.err != nil {
-			return fail(stdout.err)
+			return stdout.err
 		}
 		stderr.printf("\nDry run, nothing written. Add this line to the token file:\n  %s %s\n%s\n"+
 			"The token above is shown only now; store it with the caller.\n",
 			name, hex.EncodeToString(hash[:]), c.apply())
-		return 0
+		return nil
 	}
 
 	path, err := c.tokenFile(configPath)
 	if err != nil {
-		return fail(fmt.Errorf("%w; use -dry-run to only print the line", err))
+		return fmt.Errorf("%w; use -dry-run to only print the line", err)
 	}
 
 	_, statErr := os.Stat(path)
 	created := errors.Is(statErr, fs.ErrNotExist)
 
 	if err := AddTokenToFile(path, name, hash); err != nil {
-		return fail(err)
+		return err
 	}
 
 	if created {
@@ -150,63 +153,61 @@ func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryR
 
 	stdout.printf("%s\n", token)
 	if stdout.err != nil {
-		return fail(fmt.Errorf("%q was added to %s, but the token could not be printed (%w); "+
-			"remove it with: %s token remove %s", name, path, stdout.err, c.App, name))
+		return fmt.Errorf("%q was added to %s, but the token could not be printed (%w); "+
+			"remove it with: %s token remove %s", name, path, stdout.err, c.App, name)
 	}
 	stderr.printf("\nAdded %q to %s. %s\n"+
 		"The token above is shown only now; store it with the caller.\n", name, path, c.apply())
-	return 0
+	return nil
 }
 
-func (c TokenCommand) remove(stderr *printer, configPath, name string, dryRun bool, fail func(error) int) int {
+func (c TokenCommand) remove(stderr *printer, configPath, name string, dryRun bool) error {
 	path, err := c.tokenFile(configPath)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 
 	if dryRun {
 		tokens, err := ReadTokenFile(path)
 		if err != nil {
-			return fail(err)
+			return err
 		}
-		for _, t := range tokens {
-			if t.Name == name {
-				stderr.printf("Dry run, nothing written. Would remove %q from %s.\n", name, path)
-				return 0
-			}
+		if !slices.ContainsFunc(tokens, func(t Token) bool { return t.Name == name }) {
+			return fmt.Errorf("%w: %q", ErrTokenNotFound, name)
 		}
-		return fail(fmt.Errorf("%w: %q", ErrTokenNotFound, name))
+		stderr.printf("Dry run, nothing written. Would remove %q from %s.\n", name, path)
+		return nil
 	}
 
 	if err := RemoveTokenFromFile(path, name); err != nil {
-		return fail(err)
+		return err
 	}
 	stderr.printf("Removed %q from %s. %s\n", name, path, c.apply())
-	return 0
+	return nil
 }
 
-func (c TokenCommand) list(stdout, stderr *printer, configPath string, fail func(error) int) int {
+func (c TokenCommand) list(stdout, stderr *printer, configPath string) error {
 	path, err := c.tokenFile(configPath)
 	if err != nil {
-		return fail(err)
+		return err
 	}
 
 	tokens, err := ReadTokenFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		stderr.printf("No token file yet: %s\n", path)
-		return 0
+		return nil
 	}
 	if err != nil {
-		return fail(err)
+		return err
 	}
 
 	for _, t := range tokens {
 		stdout.printf("%s\n", t.Name)
 	}
 	if stdout.err != nil {
-		return fail(stdout.err)
+		return stdout.err
 	}
-	return 0
+	return nil
 }
 
 // apply returns the hint how a change takes effect.
