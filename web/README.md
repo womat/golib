@@ -40,7 +40,6 @@ both sections before putting this on a public interface.
 | `func WriteError(w http.ResponseWriter, r *http.Request, status int, err error, reason ...error)` | uniform error body, logged with its reasons |
 | `func NewApiError(err error) ApiError` / `type ApiError struct{ Error string }` | the JSON error shape: `{"error":"…"}` |
 | `func UserFrom(ctx context.Context) (string, bool)` | who `WithAuth` authorized the request as: the name of the token |
-| `type ContextKey string` | the type of the context key `WithAuth` stores the user under; read it with `UserFrom` |
 
 Sentinel errors: `ErrUnauthorized`, `ErrForbidden`, `ErrInternal`, and for
 token files `ErrTokenExists`, `ErrTokenNotFound`, `ErrInvalidTokenName`. They

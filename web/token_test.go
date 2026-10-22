@@ -216,7 +216,7 @@ func TestWithAuthTokens(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			var user any
 			h := WithAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				user = r.Context().Value(contextKeyUser)
+				user = r.Context().Value(userKey{})
 			}), cfg)
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)

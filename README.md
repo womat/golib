@@ -198,6 +198,11 @@ To move a service from v1 to v2:
 A further split of a package into its own module happens only when it needs a
 version of its own.
 
+**After v2.0.0, `web.ContextKey` was removed** although that breaks the API
+inside v2: any code in the process could build `web.ContextKey("user")` and
+make `UserFrom` report a caller `WithAuth` never authorized. None of the five
+services used the type. Read the caller with `web.UserFrom`.
+
 ## Tagging a new version
 
 There is one branch, `main`; a version is an annotated tag on it, and tags apply

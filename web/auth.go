@@ -17,15 +17,14 @@ type Config struct {
 	Tokens []Token
 }
 
-// ContextKey is used for storing values in context safely
-type ContextKey string
-
-const contextKeyUser ContextKey = "user"
+// userKey is the context key WithAuth stores the caller's name under. It is a
+// private struct type, so no other package can set it and pose as a caller.
+type userKey struct{}
 
 // UserFrom returns who WithAuth authorized the request as: the name of the
 // bearer token. ok is false outside WithAuth.
 func UserFrom(ctx context.Context) (user string, ok bool) {
-	user, ok = ctx.Value(contextKeyUser).(string)
+	user, ok = ctx.Value(userKey{}).(string)
 	return user, ok
 }
 
@@ -43,7 +42,7 @@ func WithAuth(h http.Handler, config Config) http.Handler {
 			if token, ok := bearerToken(r); ok {
 				if name, ok := matchToken(config.Tokens, token); ok {
 					recordCaller(r.Context(), name)
-					ctx := context.WithValue(r.Context(), contextKeyUser, name)
+					ctx := context.WithValue(r.Context(), userKey{}, name)
 					h.ServeHTTP(w, r.WithContext(ctx))
 					return
 				}

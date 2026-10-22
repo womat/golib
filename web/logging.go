@@ -185,7 +185,7 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 			// WithAuth runs inside this handler and cannot hand a context
 			// back out; it records the authenticated caller here instead.
 			caller := new(requestCaller)
-			r = r.WithContext(context.WithValue(r.Context(), contextKeyCaller, caller))
+			r = r.WithContext(context.WithValue(r.Context(), callerKey{}, caller))
 
 			// Read and restore the request body before the handler consumes it,
 			// but never more than the limit.
@@ -250,12 +250,13 @@ type requestCaller struct {
 	name string
 }
 
-const contextKeyCaller ContextKey = "caller"
+// callerKey is the context key the requestCaller is stored under.
+type callerKey struct{}
 
 // recordCaller notes name as the authenticated caller of the request, if
 // WithLogging is in the chain to log it.
 func recordCaller(ctx context.Context, name string) {
-	if c, ok := ctx.Value(contextKeyCaller).(*requestCaller); ok {
+	if c, ok := ctx.Value(callerKey{}).(*requestCaller); ok {
 		c.name = name
 	}
 }
