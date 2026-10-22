@@ -2,6 +2,7 @@ package web
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
 	"net"
 	"net/http"
@@ -49,22 +50,15 @@ func parseIPList(log *slog.Logger, name string, entries []string) ipList {
 	list := ipList{configured: len(entries) > 0}
 
 	for _, entry := range entries {
-		trimmed := strings.TrimSpace(entry)
-
-		if strings.Contains(trimmed, "/") {
-			if _, ipNet, err := net.ParseCIDR(trimmed); err == nil {
-				list.nets = append(list.nets, ipNet)
-				continue
-			}
-			log.Error("Invalid CIDR in IP filter, entry ignored", "list", name, "entry", entry)
-			continue
-		}
-
-		if ip := net.ParseIP(trimmed); ip != nil {
+		ip, ipNet, err := parseIPEntry(entry)
+		switch {
+		case err != nil:
+			log.Error("Unusable entry in IP filter, ignored", "list", name, "error", err)
+		case ipNet != nil:
+			list.nets = append(list.nets, ipNet)
+		default:
 			list.addrs = append(list.addrs, ip)
-			continue
 		}
-		log.Error("Invalid IP address in IP filter, entry ignored", "list", name, "entry", entry)
 	}
 
 	if list.configured && len(list.addrs) == 0 && len(list.nets) == 0 {
@@ -72,6 +66,37 @@ func parseIPList(log *slog.Logger, name string, entries []string) ipList {
 	}
 
 	return list
+}
+
+// parseIPEntry reads one list entry: an address, or a network in CIDR
+// notation if it contains a slash. Surrounding blanks are ignored.
+func parseIPEntry(entry string) (net.IP, *net.IPNet, error) {
+	trimmed := strings.TrimSpace(entry)
+
+	if strings.Contains(trimmed, "/") {
+		if _, ipNet, err := net.ParseCIDR(trimmed); err == nil {
+			return nil, ipNet, nil
+		}
+		return nil, nil, fmt.Errorf("invalid CIDR %q", entry)
+	}
+
+	if ip := net.ParseIP(trimmed); ip != nil {
+		return ip, nil, nil
+	}
+	return nil, nil, fmt.Errorf("invalid IP address %q", entry)
+}
+
+// ValidateIPList reports the first entry of an allow or block list that
+// WithIPFilter could not use. WithIPFilter itself only logs and skips such an
+// entry; a service calls this when it validates its config, so that a typo
+// stops it at start instead of becoming a rule that matches nothing.
+func ValidateIPList(entries []string) error {
+	for _, entry := range entries {
+		if _, _, err := parseIPEntry(entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // contains reports whether ip matches one of the addresses or networks.

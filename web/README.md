@@ -28,6 +28,7 @@ both sections before putting this on a public interface.
 | `func WithAllowedMethods(methods ...string) CORSOption` | replace the method list |
 | `func WithAllowedHeaders(headers ...string) CORSOption` | replace the request-header list |
 | `func HandlePreflight() http.Handler` | answers `OPTIONS` with 204; not needed behind `WithCORS` |
+| `func ValidateIPList(entries []string) error` | the first entry `WithIPFilter` could not use; call it when validating the config |
 | `func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFilterOption) http.Handler` | IP and CIDR allow/block lists, parsed once; 403 on rejection |
 | `func WithIPFilterLogger(logger *slog.Logger) IPFilterOption` | where to report unusable list entries, which are found while the middleware is built |
 | `func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler` | one entry per request: method, path, status, size, duration; level follows the status |

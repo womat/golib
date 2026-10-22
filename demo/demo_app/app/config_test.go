@@ -179,12 +179,12 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "typo in allowedIPs",
 			modify:  func(c *Config) { c.Webserver.AllowedIPs = []string{"192.168.0.1", "192.168.0.300"} },
-			wantErr: "invalid IP address in allowedIPs",
+			wantErr: "allowedIPs: invalid IP address",
 		},
 		{
 			name:    "typo in a CIDR",
 			modify:  func(c *Config) { c.Webserver.BlockedIPs = []string{"10.0.0.0/99"} },
-			wantErr: "invalid CIDR in blockedIPs",
+			wantErr: "blockedIPs: invalid CIDR",
 		},
 		{
 			name: "valid ip lists",

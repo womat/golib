@@ -132,3 +132,23 @@ func TestWithIPFilterInvalidEntries(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateIPList(t *testing.T) {
+	if err := ValidateIPList([]string{"192.168.0.1", " 10.0.0.0/8 ", "::1", "2001:db8::/32"}); err != nil {
+		t.Errorf("valid list: %v", err)
+	}
+	if err := ValidateIPList(nil); err != nil {
+		t.Errorf("empty list: %v", err)
+	}
+
+	for _, tt := range []struct{ entry, want string }{
+		{"192.168.0.300", `invalid IP address "192.168.0.300"`},
+		{"10.0.0.0/99", `invalid CIDR "10.0.0.0/99"`},
+		{"localhost", `invalid IP address "localhost"`},
+	} {
+		err := ValidateIPList([]string{"192.168.0.1", tt.entry})
+		if err == nil || err.Error() != tt.want {
+			t.Errorf("%q: err = %v, want %s", tt.entry, err, tt.want)
+		}
+	}
+}

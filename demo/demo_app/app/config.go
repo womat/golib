@@ -236,16 +236,13 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	for _, list := range []struct {
-		name    string
-		entries []string
-	}{
-		{"allowedIPs", c.Webserver.AllowedIPs},
-		{"blockedIPs", c.Webserver.BlockedIPs},
-	} {
-		if err := validateIPList(list.name, list.entries); err != nil {
-			return err
-		}
+	// The IP filter only logs and skips an unusable entry; a typo here would
+	// become a rule that never matches, so it stops the start instead.
+	if err := web.ValidateIPList(c.Webserver.AllowedIPs); err != nil {
+		return fmt.Errorf("allowedIPs: %w", err)
+	}
+	if err := web.ValidateIPList(c.Webserver.BlockedIPs); err != nil {
+		return fmt.Errorf("blockedIPs: %w", err)
 	}
 
 	return nil
@@ -283,25 +280,6 @@ func validateListenHost(host string) error {
 	}
 	if net.ParseIP(host) == nil {
 		return fmt.Errorf("invalid listenHost: %s, must be empty, an IP address or localhost", host)
-	}
-	return nil
-}
-
-// validateIPList reports the first entry that is neither an IP address nor a
-// CIDR network. A typo there would otherwise become a rule that never matches.
-func validateIPList(name string, entries []string) error {
-	for _, entry := range entries {
-		trimmed := strings.TrimSpace(entry)
-
-		if strings.Contains(trimmed, "/") {
-			if _, _, err := net.ParseCIDR(trimmed); err != nil {
-				return fmt.Errorf("invalid CIDR in %s: %q", name, entry)
-			}
-			continue
-		}
-		if net.ParseIP(trimmed) == nil {
-			return fmt.Errorf("invalid IP address in %s: %q", name, entry)
-		}
 	}
 	return nil
 }
