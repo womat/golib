@@ -106,7 +106,7 @@ Deliberately different from s0meter, because the demo_app does it better and s0m
 follow: `${NAME}` that is not set is an error, not an empty string, and comments are left out
 of the expansion; `Validate` checks `logDestination`, `listenHost` and both IP lists
 (`web.ValidateIPList`); prod requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a
-missing key like a missing certificate. From golib after v2.0.0, s0meter still needs
+missing key like a missing certificate. From golib v2.1.0, s0meter still needs
 `web.CheckTokenFile` in setup and `web.ValidateIPList` in `Validate`; all five services still
 need to drop their `OPTIONS /` route (`WithCORS` answers preflights), after which
 `HandlePreflight` is unused. What is s0meter's own (meters, MQTT, data file, the web page) stays
