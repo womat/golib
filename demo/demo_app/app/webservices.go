@@ -28,72 +28,67 @@ var embeddedCertFile []byte
 //go:embed certs/dev_key.pem
 var embeddedKeyFile []byte
 
-// StartWebServer initializes and starts the HTTPS server asynchronously.
-// - Production: uses file-based cert/key from config
-// - Development fallback: embedded self-signed cert
+// newTLSConfig serves cert with TLS 1.3 only. Every caller in this setup (browsers, Node-RED on
+// Node 20, curl) speaks it, and 1.3 leaves no cipher suite to choose badly.
+func newTLSConfig(cert tls.Certificate) *tls.Config {
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+	}
+}
+
+// startWebServer initializes and starts the HTTPS server asynchronously.
+// - Uses the file-based cert/key from config
+// - Development fallback (DevEnv only): embedded self-signed cert
 // - Non-blocking: runs in goroutine
 // - Graceful shutdown on app.ctx cancellation
 // - A server that stops on its own is reported on app.serverErr, which restarts the App
-func (app *App) StartWebServer() error {
+func (app *App) startWebServer() error {
 	// Set default timeouts
 	app.web.ReadTimeout = defaultReadTimeout
 	app.web.WriteTimeout = defaultWriteTimeout
 	app.web.IdleTimeout = defaultIdleTimeout
 
-	// Load TLS certificate; the embedded development pair is only allowed in DevEnv
+	// A certificate that is missing, unreadable or broken needs someone to fix it.
 	cert, err := loadTLSCert(app.config.Webserver.CertFile, app.config.Webserver.KeyFile, app.config.IsDevEnv())
 	if err != nil {
-		return fmt.Errorf("failed to load TLS certificate: %w", err)
+		return fmt.Errorf("failed to load TLS certificate: %w (%w)", err, ErrPermanent)
 	}
 
-	// TLS 1.3 only, like the services. Every caller in this setup (browsers, Node-RED on
-	// Node 20, curl) speaks it, and 1.3 leaves no cipher suite to choose badly.
-	app.web.TLSConfig = &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS13,
-	}
+	app.web.TLSConfig = newTLSConfig(cert)
 
-	// Create listener
-	listener, err := net.Listen("tcp", app.web.Addr)
+	// An IPv4 listenHost such as 0.0.0.0 listens on IPv4 only. With "tcp" Linux would open a
+	// dual-stack socket, and IPv6 clients would bypass blockedIPs and allowedIPs written as
+	// IPv4. Set listenHost to "::" to serve IPv6 as well.
+	network := "tcp"
+	if ip := net.ParseIP(app.config.Webserver.ListenHost); ip != nil && ip.To4() != nil {
+		network = "tcp4"
+	}
+	listener, err := net.Listen(network, app.web.Addr)
 	if err != nil {
 		return fmt.Errorf("failed to create listener: %w", err)
 	}
+	// Record the address actually bound, so a test that listens on port 0 learns its port.
+	// Nothing in the service reads Addr after this point.
+	app.web.Addr = listener.Addr().String()
 
-	// Channel to report server runtime errors
-	serverErrCh := make(chan error, 1)
-
-	// Tracked by app.wg so that a shutdown waits for the listener to be closed;
-	// otherwise a restart can race with the next net.Listen on the same port.
+	// ServeTLS blocks until Shutdown and closes the listener when it returns. A server that
+	// stops on its own is reported to the signal handler, which restarts the App; it must not
+	// be done from here, because the restart waits for this goroutine via app.wg.
 	app.wg.Go(func() {
-		// ServeTLS blocks until Shutdown is called
-		err := app.web.ServeTLS(listener, "", "")
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErrCh <- err
-		}
-
-		// Close the listener when ServeTLS exits, but ignore the normal
-		// already-closed case during graceful shutdown.
-		if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			slog.Error("Failed to close listener", "error", err)
+		if err := app.web.ServeTLS(listener, "", ""); !errors.Is(err, http.ErrServerClosed) {
+			app.serverErr <- err
 		}
 	})
 
-	// Goroutine to monitor runtime errors and handle shutdown
 	app.wg.Go(func() {
-
-		select {
-		case err := <-serverErrCh:
-			// The signal handler restarts the App. It must not be done from here: the
-			// restart waits for this goroutine via app.wg.
-			app.serverErr <- err
-		case <-app.ctx.Done():
-			ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			if err := app.web.Shutdown(ctxShutdown); err != nil {
-				slog.Error("Failed to shutdown webserver gracefully", "error", err)
-			} else {
-				slog.Info("Webserver stopped gracefully")
-			}
+		<-app.ctx.Done()
+		ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := app.web.Shutdown(ctxShutdown); err != nil {
+			slog.Error("Failed to shutdown webserver gracefully", "error", err)
+		} else {
+			slog.Info("Webserver stopped gracefully")
 		}
 	})
 
@@ -103,9 +98,9 @@ func (app *App) StartWebServer() error {
 // loadTLSCert loads the configured certificate and key.
 //
 // Only in a development environment does a missing file fall back to the
-// embedded self-signed pair. That pair is public - it lives in this repository -
-// and is good for localhost and nothing else, so in production a missing file is
-// a startup error instead of a silently insecure server.
+// embedded self-signed pair. That pair's private key ships in every binary and
+// is good for localhost and nothing else, so in production a missing file is a
+// startup error instead of a silently insecure server.
 func loadTLSCert(certFile, keyFile string, devEnv bool) (tls.Certificate, error) {
 	certMissing, err := isMissing(certFile)
 	if err != nil {

@@ -7,7 +7,7 @@ import (
 	"github.com/womat/golib/v2/web"
 )
 
-// SetupRoutes configures all HTTP routes and global middleware for the application:
+// setupRoutes configures all HTTP routes and global middleware for the application:
 //   - GET /version - public, no authentication
 //   - GET /health - protected, a bearer token from the token file via web.WithAuth
 //   - GET /swagger/ - only in builds made with -tags swagger
@@ -17,8 +17,8 @@ import (
 // preflight before the mux, so it never meets the authentication middleware;
 // without an "OPTIONS /" route the mux answers 404 and 405 correctly. It must
 // be called during startup, before the HTTP server starts.
-func (app *App) SetupRoutes() {
-	webCfg := web.Config{Tokens: app.config.Webserver.Tokens}
+func (app *App) setupRoutes() {
+	webCfg := app.webConfig()
 
 	mux := http.NewServeMux()
 
@@ -26,10 +26,10 @@ func (app *App) SetupRoutes() {
 	app.registerSwaggerRoute(mux)
 
 	// Public routes
-	mux.Handle("GET /version", app.HandleVersion())
+	mux.Handle("GET /version", app.handleVersion())
 
 	// Protected routes
-	mux.Handle("GET /health", web.WithAuth(app.HandleHealth(), webCfg))
+	mux.Handle("GET /health", web.WithAuth(app.handleHealth(), webCfg))
 
 	// One logger for the whole chain: WithLogging puts it into the request
 	// context, where web.WriteError and the IP filter pick it up at request
@@ -44,4 +44,10 @@ func (app *App) SetupRoutes() {
 		web.WithIPFilterLogger(logger))
 	handler = web.WithLogging(handler, logger)
 	app.web.Handler = handler
+}
+
+// webConfig is the authentication of the protected routes: the bearer tokens from the token
+// file, nothing else.
+func (app *App) webConfig() web.Config {
+	return web.Config{Tokens: app.config.Webserver.Tokens}
 }

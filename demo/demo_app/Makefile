@@ -7,7 +7,9 @@ BINARY_NAME=demo_app
 DEV_CERT_DIR=./app/certs
 DEV_CERT_FILE=$(DEV_CERT_DIR)/dev_cert.pem
 DEV_KEY_FILE=$(DEV_CERT_DIR)/dev_key.pem
-VERSION?=0.0.0
+# The Git tag is the version; app.VERSION gets it through LDFLAGS.
+VERSION := $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//')
+VERSION := $(if $(VERSION),$(VERSION),dev)
 SERVICE_PORT?=3000
 DOCKER_REGISTRY?= #if set it should finished by /
 EXPORT_RESULT?=false # for CI please set EXPORT_RESULT to true
@@ -28,7 +30,8 @@ BUILD_DATE := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 BUILD_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 LDFLAGS := -X 'main.buildDate=$(BUILD_DATE)' \
-           -X 'main.buildCommit=$(BUILD_COMMIT)'
+           -X 'main.buildCommit=$(BUILD_COMMIT)' \
+           -X 'github.com/womat/golib/demo/demo_app/app.VERSION=$(VERSION)'
 
 .PHONY: all test build vendor copy build_dev build_arm6 build_arm7 build_arm64 build_arm64_dev build_windows386 build_windows64 build_linux386 build_linux64 build_mac_arm64 deploy deploy_dev clean help ensure_dev_certs
 

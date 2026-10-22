@@ -19,9 +19,9 @@ func routedApp(t *testing.T, change func(*Config)) *App {
 		change(cfg)
 	}
 
-	app := New(cfg, t.TempDir(), nil, nil)
+	app := New(cfg, nil, nil)
 	t.Cleanup(app.cancelFunc)
-	app.SetupRoutes()
+	app.setupRoutes()
 	return app
 }
 

@@ -5,15 +5,19 @@ package app
 import (
 	"net/http"
 
-	_ "github.com/womat/golib/demo/demo_app/docs"
+	"github.com/womat/golib/demo/demo_app/docs"
 
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-const PathSwagger = "/swagger/"
+const pathSwagger = "/swagger/"
 
 func (app *App) registerSwaggerRoute(mux *http.ServeMux) {
-	mux.Handle("GET "+PathSwagger, httpSwagger.Handler(
+	// The generated spec carries no version of its own; fill it from the build-time
+	// value so the UI reports the same version as /version and --about.
+	docs.SwaggerInfo.Version = VERSION
+
+	mux.Handle("GET "+pathSwagger, httpSwagger.Handler(
 		httpSwagger.PersistAuthorization(true),
 	))
 }

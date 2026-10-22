@@ -7,31 +7,123 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 )
 
-// These tests start the real HTTPS server on a free port of 127.0.0.1, with
-// the embedded development certificate. The signals are sent into the channel
-// the App reads, not to the process.
-
-const lifecycleTimeout = 5 * time.Second
-
-// freePort returns a port nothing listens on at the moment.
-func freePort(t *testing.T) int {
+// newSignalApp returns an App whose signal handler listens on the returned channel, buffered
+// like the one cmd subscribes. No web server runs.
+func newSignalApp(t *testing.T, checkReload func() error) (*App, chan os.Signal) {
 	t.Helper()
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = l.Close() }()
-	return l.Addr().(*net.TCPAddr).Port
+	signals := make(chan os.Signal, 1)
+	app := New(validConfig(), signals, checkReload)
+	app.handleSignals()
+	return app, signals
 }
 
-// testConfig is a valid dev configuration listening on port.
-func testConfig(t *testing.T, port int) *Config {
+// SIGHUP restarts the App once the config file has passed the check.
+func TestSIGHUPRestarts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		checked := false
+		app, signals := newSignalApp(t, func() error { checked = true; return nil })
+
+		signals <- syscall.SIGHUP
+		<-app.Done()
+		if !app.Restarting() {
+			t.Error("SIGHUP stopped the App for good instead of restarting it")
+		}
+		if !checked {
+			t.Error("the config was not checked before the restart")
+		}
+		if app.ctx.Err() == nil {
+			t.Error("the App context was not cancelled by the restart")
+		}
+	})
+}
+
+// A SIGHUP whose config is rejected leaves the App running, and it still reacts to the next
+// signal.
+func TestRejectedReloadKeepsRunning(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		app, signals := newSignalApp(t, func() error { return errors.New("broken config") })
+
+		signals <- syscall.SIGHUP
+		synctest.Wait()
+		if app.ctx.Err() != nil {
+			t.Fatal("a rejected reload stopped the App")
+		}
+		select {
+		case <-app.Done():
+			t.Fatal("a rejected reload stopped the App")
+		default:
+		}
+
+		signals <- syscall.SIGTERM
+		<-app.Done()
+	})
+}
+
+// SIGTERM and SIGINT stop the App for good; Done is closed, so every later receive returns at
+// once.
+func TestStopSignals(t *testing.T) {
+	for _, sig := range []os.Signal{syscall.SIGTERM, syscall.SIGINT} {
+		t.Run(sig.String(), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				app, signals := newSignalApp(t, nil)
+
+				signals <- sig
+				<-app.Done()
+				if _, open := <-app.Done(); open {
+					t.Error("Done is still open after the stop")
+				}
+				if app.Restarting() {
+					t.Errorf("%v reports a restart, want a stop", sig)
+				}
+				if app.ctx.Err() == nil {
+					t.Error("the App context was not cancelled by the stop")
+				}
+			})
+		})
+	}
+}
+
+// A web server that stopped on its own restarts the App.
+func TestServerErrorRestarts(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		app, _ := newSignalApp(t, nil)
+
+		app.serverErr <- errors.New("listener gone")
+		<-app.Done()
+		if !app.Restarting() {
+			t.Error("a server error stopped the App for good instead of restarting it")
+		}
+	})
+}
+
+// Once its context is cancelled, the handler of an App leaves the next signal in the channel
+// for the App that replaces it.
+func TestCancelledHandlerLeavesSignalForNextApp(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		app, signals := newSignalApp(t, nil)
+
+		app.cancelFunc()
+		synctest.Wait()
+
+		signals <- syscall.SIGTERM
+		synctest.Wait()
+		if len(signals) != 1 {
+			t.Error("the handler of a cancelled App consumed the signal")
+		}
+	})
+}
+
+// The tests below start the real HTTPS server on 127.0.0.1, with the embedded development
+// certificate.
+
+// serverConfig is a valid dev configuration listening on port, 0 for any free one.
+func serverConfig(t *testing.T, port int) *Config {
 	t.Helper()
 	cfg := validConfig()
 	cfg.Webserver.ListenHost = "127.0.0.1"
@@ -43,40 +135,13 @@ func testConfig(t *testing.T, port int) *Config {
 	return cfg
 }
 
-// running starts an App and returns it with the channel it reads signals from.
-func running(t *testing.T, checkReload func() error) (*App, chan os.Signal) {
-	t.Helper()
-	signals := make(chan os.Signal, 1)
-	a, err := New(testConfig(t, freePort(t)), t.TempDir(), signals, checkReload).Run()
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
-	return a, signals
-}
-
-// stop ends a running App and waits until it is gone.
-func stop(t *testing.T, a *App, signals chan<- os.Signal) {
-	t.Helper()
-	signals <- syscall.SIGTERM
-	expect(t, a.Shutdown(), "shutdown")
-}
-
-// expect waits for ch to deliver.
-func expect(t *testing.T, ch <-chan struct{}, what string) {
-	t.Helper()
-	select {
-	case <-ch:
-	case <-time.After(lifecycleTimeout):
-		t.Fatalf("no %s within %v", what, lifecycleTimeout)
-	}
-}
-
 // serves reports whether the App answers GET /version.
 func serves(a *App) bool {
 	client := &http.Client{
 		Timeout: time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // the embedded dev certificate
+			DisableKeepAlives: true,                                  // every request sees whether the server is up right now
+			TLSClientConfig:   &tls.Config{InsecureSkipVerify: true}, // the embedded dev certificate
 		},
 	}
 	resp, err := client.Get("https://" + a.web.Addr + "/version")
@@ -87,100 +152,88 @@ func serves(a *App) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-func TestSIGTERMStopsAndReleasesThePort(t *testing.T) {
-	a, signals := running(t, nil)
+// A stopped App has closed its listener, so the next App can take the port at once.
+func TestStopReleasesThePort(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	a, err := New(serverConfig(t, 0), signals, nil).Run()
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
 	if !serves(a) {
 		t.Fatal("the App does not answer")
 	}
 
-	stop(t, a, signals)
+	signals <- syscall.SIGTERM
+	select {
+	case <-a.Done():
+	case <-time.After(5 * time.Second):
+		t.Fatal("no stop within 5s")
+	}
 
 	l, err := net.Listen("tcp", a.web.Addr)
 	if err != nil {
-		t.Fatalf("port still taken after shutdown: %v", err)
+		t.Fatalf("port still taken after the stop: %v", err)
 	}
 	_ = l.Close()
 }
 
-func TestSIGHUPRestarts(t *testing.T) {
-	a, signals := running(t, func() error { return nil })
-
-	signals <- syscall.SIGHUP
-
-	expect(t, a.Restart(), "restart")
-}
-
-func TestSIGHUPWithABrokenConfigKeepsRunning(t *testing.T) {
-	checked := make(chan struct{}, 1)
-	a, signals := running(t, func() error {
-		checked <- struct{}{}
-		return errors.New("broken config")
-	})
-
-	signals <- syscall.SIGHUP
-	expect(t, checked, "config check")
-
-	select {
-	case <-a.Restart():
-		t.Fatal("restarted with a config that failed its check")
-	case <-time.After(200 * time.Millisecond):
-	}
-	if !serves(a) {
-		t.Error("the App stopped serving after a rejected reload")
-	}
-
-	// It still listens for signals.
-	stop(t, a, signals)
-}
-
-func TestServerErrorRestarts(t *testing.T) {
-	a, _ := running(t, nil)
-
-	a.serverErr <- errors.New("listener gone")
-
-	expect(t, a.Restart(), "restart")
-}
-
-func TestFailedRunReleasesWhatItAcquired(t *testing.T) {
+// A signal that waits in the channel while a start fails stays there for the next App: the
+// failed App must not handle it, because its abort would run alongside the shutdown the
+// signal starts.
+func TestFailedStartLeavesSignalForNextApp(t *testing.T) {
 	busy, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = busy.Close() }()
-	port := busy.Addr().(*net.TCPAddr).Port
 
 	signals := make(chan os.Signal, 1)
-	a, err := New(testConfig(t, port), t.TempDir(), signals, nil).Run()
+	signals <- syscall.SIGTERM
+	a, err := New(serverConfig(t, busy.Addr().(*net.TCPAddr).Port), signals, nil).Run()
 	if err == nil {
-		t.Fatal("Run on a busy port succeeded")
+		t.Fatal("Run succeeded on a port in use")
 	}
 	if a.ctx.Err() == nil {
 		t.Error("the context of the failed App is still live")
 	}
 
-	// The signal handler of the failed App is gone: a signal waits for the
-	// next App instead of being taken by the dead one.
-	signals <- syscall.SIGTERM
-	time.Sleep(100 * time.Millisecond)
-	if len(signals) != 1 {
-		t.Error("the failed App consumed a signal")
+	select {
+	case s := <-signals:
+		if s != syscall.SIGTERM {
+			t.Errorf("signal = %v, want SIGTERM", s)
+		}
+	default:
+		t.Error("the failed App took the signal away from the next one")
 	}
 }
 
-// The port of a restarted App is free for the next one: the restart waits for
-// the listener to close.
-func TestRestartReleasesThePort(t *testing.T) {
-	a, signals := running(t, func() error { return nil })
-	addr := a.web.Addr
+// A certificate that cannot be loaded does not fix itself: the error is permanent, so cmd ends
+// with exit code 78 instead of letting systemd restart into it.
+func TestRunMarksCertificateErrorsPermanent(t *testing.T) {
+	cfg := serverConfig(t, 0)
+	cfg.Env = ProdEnv // no embedded fallback
 
-	signals <- syscall.SIGHUP
-	expect(t, a.Restart(), "restart")
-
-	_, portText, _ := net.SplitHostPort(addr)
-	port, _ := strconv.Atoi(portText)
-	next, err := New(testConfig(t, port), t.TempDir(), signals, nil).Run()
-	if err != nil {
-		t.Fatalf("next App on the same port: %v", err)
+	_, err := New(cfg, make(chan os.Signal, 1), nil).Run()
+	if !errors.Is(err, ErrPermanent) {
+		t.Errorf("err = %v, want ErrPermanent", err)
 	}
-	stop(t, next, signals)
+}
+
+// An IPv4 listenHost listens on IPv4 only, so an IPv6 client cannot bypass IP lists written as
+// IPv4.
+func TestIPv4ListenHostListensOnIPv4Only(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	cfg := serverConfig(t, 0)
+	cfg.Webserver.ListenHost = "0.0.0.0"
+	a, err := New(cfg, signals, nil).Run()
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	defer func() { signals <- syscall.SIGTERM; <-a.Done() }()
+
+	_, port, _ := net.SplitHostPort(a.web.Addr)
+	if conn, err := net.DialTimeout("tcp6", net.JoinHostPort("::1", port), time.Second); err == nil {
+		_ = conn.Close()
+		t.Error("the server answers on IPv6")
+	}
 }

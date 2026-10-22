@@ -7,6 +7,7 @@ package main
 
 import (
 	_ "embed"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -23,15 +24,16 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Readme embeds the README.md file for the --help flag
+// readme is cmd/README.md, printed by --help.
 //
 //go:embed README.md
-var Readme string
+var readme string
 
-// exitConfig is the exit code for a config file that does not load or validate (EX_CONFIG from
-// sysexits.h). The unit sets RestartPreventExitStatus=78: restarting cannot fix the file, so
-// systemd leaves demo_app stopped and "systemctl status demo_app" shows why, instead of
-// restarting it every few seconds.
+// exitConfig is the exit code for a config file that does not load or validate, a log destination
+// that cannot be opened at the first start, and a start that fails with app.ErrPermanent, such as
+// a missing certificate (EX_CONFIG from sysexits.h). The unit sets RestartPreventExitStatus=78:
+// restarting cannot fix the file, so systemd leaves demo_app stopped and "systemctl status
+// demo_app" shows why, instead of restarting it every few seconds.
 const exitConfig = 78
 
 // buildDate and buildCommit are injected at build time via -ldflags
@@ -52,12 +54,7 @@ func main() {
 
 	// "demo_app token add|remove|list" manages the bearer tokens in webserver.tokenFile.
 	if len(os.Args) > 1 && os.Args[1] == "token" {
-		os.Exit(web.TokenCommand{
-			App:           app.MODULE,
-			DefaultConfig: defaultConfig,
-			TokenFile:     app.TokenFile,
-			Apply:         "Apply with: systemctl reload " + app.MODULE,
-		}.Run(os.Args[2:]))
+		os.Exit(tokenCommand(defaultConfig).Run(os.Args[2:]))
 	}
 
 	// Parse command line flags.
@@ -73,18 +70,18 @@ func main() {
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		fmt.Println("Error parsing flags:", err)
 		flags.Usage()
-		os.Exit(1)
+		os.Exit(2)
 	}
 
 	switch {
 	case *about:
-		fmt.Println(About())
+		fmt.Println(aboutText())
 		os.Exit(0)
 	case *version:
 		fmt.Println(app.VERSION)
 		os.Exit(0)
 	case *help:
-		fmt.Println(Readme)
+		fmt.Println(readme)
 		os.Exit(0)
 	}
 
@@ -92,15 +89,8 @@ func main() {
 	os.Exit(run(*configFile, *debug))
 }
 
-// run initializes configuration, logging, and the application loop.
-// It supports hot-reloading of the configuration and handles graceful shutdown.
+// run subscribes to the OS signals and runs the application loop.
 func run(configFile string, debug bool) int {
-
-	var logger *xlog.LoggerWrapper
-	defer func() { closeLogger(logger) }()
-
-	fmt.Printf("Starting %s %s\n", app.MODULE, app.VERSION)
-
 	// Subscribe once for the whole process, not per App: between two lifecycles no App is
 	// listening, and without a subscription a SIGTERM or a second SIGHUP in that gap would end
 	// the process with the default action instead of a graceful stop. Here the signal
@@ -108,6 +98,24 @@ func run(configFile string, debug bool) int {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
 	defer signal.Stop(signals)
+
+	return loop(configFile, debug, signals)
+}
+
+// loop initializes configuration and logging, then runs one App after another until a stop
+// signal arrives, and returns the exit code. It supports hot-reloading of the configuration
+// and handles graceful shutdown. signals must stay subscribed for the whole loop, see run.
+func loop(configFile string, debug bool, signals <-chan os.Signal) int {
+
+	var logger *xlog.LoggerWrapper
+	defer func() {
+		if logger != nil {
+			_ = logger.Close()
+		}
+	}()
+
+	fmt.Printf("Starting %s %s\n", app.MODULE, app.VERSION)
+	fmt.Printf("Loading configuration from: %s\n", configFile)
 
 	config, err := loadConfig(configFile, debug)
 	if err != nil {
@@ -127,14 +135,16 @@ func run(configFile string, debug bool) int {
 		newLogger, err := xlog.Init(config.LogDestination, config.LogLevel)
 		switch {
 		case err != nil && lastGood == nil:
+			// A log destination that cannot be opened (a path outside the unit's writable
+			// directories, a missing directory) stays so until someone changes it.
 			fmt.Printf("Failed to initialize logger: %s\n", err.Error())
-			return 1
+			return exitConfig
 		case err != nil:
 			slog.Error("Failed to initialize logger, keeping the current one", "error", err)
 		default:
 			slog.SetDefault(newLogger.Logger)
-			// Reported through the new logger, which is already in place.
 			if logger != nil {
+				// Reported through the new logger, which is already in place.
 				if err := logger.Close(); err != nil {
 					slog.Warn("Failed to close the previous log destination", "error", err)
 				}
@@ -151,10 +161,13 @@ func run(configFile string, debug bool) int {
 		}
 
 		// Create and run the application. A failed Run has released everything it acquired.
-		a, err := app.New(config, filepath.Join("/opt", app.MODULE), signals, checkReload).Run()
+		a, err := app.New(config, signals, checkReload).Run()
 		if err != nil {
 			if lastGood == nil || config == lastGood {
 				slog.Error("Critical error occurred, shutting down", "error", err)
+				if errors.Is(err, app.ErrPermanent) {
+					return exitConfig
+				}
 				return 1
 			}
 			slog.Error("Start with the new configuration failed, continuing with the previous one", "error", err)
@@ -163,40 +176,36 @@ func run(configFile string, debug bool) int {
 		}
 		lastGood = config
 
-		// Wait for restart or shutdown signals
-		select {
-		case <-a.Restart():
-			slog.Info("Reloading configuration", "configFile", configFile)
-			time.Sleep(time.Second) // prevent tight restart loops
-			// The file was checked before the restart, but it may have changed since.
-			if config, err = loadConfig(configFile, debug); err != nil {
-				slog.Error("Config reload failed, continuing with the previous configuration", "error", err)
-				config = lastGood
-			}
-		case <-a.Shutdown():
+		// Wait until the App has stopped, for a restart or for good.
+		<-a.Done()
+		if !a.Restarting() {
 			slog.Info("Shutdown requested")
 			return 0
+		}
+
+		slog.Info("Reloading configuration", "configFile", configFile)
+		time.Sleep(time.Second) // prevent tight restart loops
+		// The file was checked before the restart, but it may have changed since.
+		if config, err = loadConfig(configFile, debug); err != nil {
+			slog.Error("Config reload failed, continuing with the previous configuration", "error", err)
+			config = lastGood
 		}
 	}
 }
 
-// closeLogger releases the log file and reports a failure on stderr.
-//
-// Stderr, not slog: this runs while the logger is being torn down or replaced,
-// so the log itself is exactly the channel that cannot be trusted here. A
-// failing Close means buffered lines did not make it to disk, which is worth
-// knowing.
-func closeLogger(logger *xlog.LoggerWrapper) {
-	if logger == nil {
-		return
-	}
-
-	if err := logger.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to close the log file: %s\n", err)
+// tokenCommand returns the "token" subcommand, which finds the token file through the same
+// webserver.tokenFile of defaultConfig (or -config) that the service reads.
+func tokenCommand(defaultConfig string) web.TokenCommand {
+	return web.TokenCommand{
+		App:           app.MODULE,
+		DefaultConfig: defaultConfig,
+		TokenFile:     app.TokenFile,
+		Apply:         "Apply with: systemctl reload " + app.MODULE,
 	}
 }
 
-func About() string {
+// aboutText returns the build and project details printed by --about, as YAML.
+func aboutText() string {
 	info := map[string]string{
 		"Author":   "Wolfgang Mathe",
 		"Binary":   filepath.Join("/opt", app.MODULE, "bin", app.MODULE),
@@ -204,9 +213,8 @@ func About() string {
 		"Commit":   buildCommit,
 		"Desc":     app.MODULE + " is a demo app",
 		"Help":     filepath.Join("/opt", app.MODULE, "bin", app.MODULE) + " --help",
-		"Main":     filepath.Join("/opt/src", app.MODULE, "cmd", app.MODULE, "main.go"),
 		"ProgLang": runtime.Version(),
-		"Repo":     "https://github.com/womat/" + app.MODULE + ".git",
+		"Repo":     "https://github.com/womat/golib.git",
 		"Version":  app.VERSION,
 	}
 

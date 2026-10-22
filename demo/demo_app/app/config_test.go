@@ -102,6 +102,15 @@ func TestLoadConfigUndefinedVariable(t *testing.T) {
 	}
 }
 
+// A misspelled or renamed key must not silently leave its setting at the default.
+func TestLoadConfigRefusesUnknownKeys(t *testing.T) {
+	path := writeConfig(t, "webserver:\n  listenport: 9000\n")
+
+	if _, err := LoadConfig(path); err == nil || !strings.Contains(err.Error(), "listenport") {
+		t.Errorf("err = %v, want one naming the unknown key", err)
+	}
+}
+
 func TestLoadConfigInvalidYAML(t *testing.T) {
 	path := writeConfig(t, "webserver:\n\tcertFile: tabs are not yaml\n")
 
@@ -295,5 +304,13 @@ func TestLoadConfigMissingTokenFile(t *testing.T) {
 	}
 	if want := filepath.Join(filepath.Dir(path), "token-hashes"); got != want {
 		t.Errorf("TokenFile = %q, want %q", got, want)
+	}
+}
+
+// The config file that ships with the template must load: with unknown keys refused, a renamed
+// field would otherwise break every copy of it.
+func TestShippedConfigHasOnlyKnownKeys(t *testing.T) {
+	if _, err := TokenFile("../config/config.yaml"); err != nil {
+		t.Fatal(err)
 	}
 }

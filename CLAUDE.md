@@ -89,14 +89,28 @@ channels (`app/app.go`), signal-driven graceful shutdown and config reload on `S
 rereads the token file), and version/build metadata injected via `-ldflags`. Swagger is compiled
 in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`).
 
-Its lifecycle matches the five services (smartmeter's `cmd/main.go` and `app/app.go` are the
-closest): `run` subscribes the signals once for the process and hands them to every `App`; a
-`SIGHUP` is checked with `checkReload` before anything is torn down; a new config that fails to
-start falls back to `lastGood`; a web server that stops on its own restarts the `App` via
-`serverErr`; a failed `Run` releases what it acquired (`abort`). A config that does not load or
-validate at start ends it with exit code 78 (`EX_CONFIG`), which the unit in its README keeps
-systemd from restarting. When starting a new service in this ecosystem, copy this structure, and
-keep it in step with the services when one of them changes it.
+Its lifecycle follows s0meter (`cmd/main.go`, `app/app.go`, `app/webservices.go`), the most
+advanced of the five services; it was brought in line on 22.10.2026. `run` subscribes the signals
+once for the process and hands them to `loop`, which `cmd/loop_test.go` drives with a channel of
+its own; every `App` reads from it. A `SIGHUP` is checked with `checkReload` before anything is
+torn down; a new config that fails to start falls back to `lastGood`; a web server that stops on
+its own restarts the `App` via `serverErr`; a failed `Run` releases what it acquired (`abort`),
+and the signal handler starts only after the web server, so a waiting signal cannot run a
+shutdown alongside `abort`. The `App` ends by closing `Done()`; `Restarting()` tells `loop`
+whether to build the next one. Exit code 78 (`EX_CONFIG`) ends a config that does not load or
+validate, a log destination that cannot be opened at the first start, and a start failing with
+`app.ErrPermanent` (a certificate that cannot be loaded); the unit in its README keeps systemd
+from restarting after it. `VERSION` comes from the Git tag via `-ldflags`.
+
+Deliberately different from s0meter, because the demo_app does it better and s0meter should
+follow: `${NAME}` that is not set is an error, not an empty string, and comments are left out
+of the expansion; `Validate` checks `logDestination`, `listenHost` and both IP lists
+(`web.ValidateIPList`); prod requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a
+missing key like a missing certificate. From golib after v2.0.0, s0meter still needs: no
+`OPTIONS /` route (`WithCORS` answers preflights), `web.CheckTokenFile` in setup,
+`web.ValidateIPList` in `Validate`. What is s0meter's own (meters, MQTT, data file, the web page,
+`WithSuccessLevel`) stays there. When starting a new service in this ecosystem, copy this
+structure, and keep it in step with the services when one of them changes it.
 
 ## Conventions
 

@@ -117,8 +117,8 @@ Rotating without a gap: `add nodered-2`, move the caller to the new token,
 
 ```go
 mux := http.NewServeMux()
-mux.Handle("GET /version", app.HandleVersion())         // public
-mux.Handle("GET /health", web.WithAuth(app.HandleHealth(), webCfg))
+mux.Handle("GET /version", app.handleVersion())         // public
+mux.Handle("GET /health", web.WithAuth(app.handleHealth(), webCfg))
 
 handler := web.WithCORS(mux)
 handler = web.WithIPFilter(handler, allowedIPs, blockedIPs)

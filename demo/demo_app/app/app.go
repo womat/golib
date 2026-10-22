@@ -1,21 +1,22 @@
 // Package app is the service skeleton this template is about: configuration
 // with defaults and environment expansion, an App that owns the HTTP server,
-// wait group, context and the restart/shutdown channels, signal-driven
-// graceful shutdown and config reload, and the route table in SetupRoutes.
+// wait group and context, signal-driven graceful shutdown and config reload,
+// and the route table in setupRoutes. One App lives for one configuration;
+// cmd/main.go builds a new one on every reload.
 //
 // Usage:
 //
+//	cfg, err := app.LoadConfig(file)          // then cfg.Validate()
 //	signals := make(chan os.Signal, 1)
 //	signal.Notify(signals, syscall.SIGHUP, syscall.SIGTERM, syscall.SIGINT)
-//	a, err := app.New(cfg, "/opt/demo_app", signals, checkReload).Run()
-//	select {
-//	case <-a.Restart():  // build the next App
-//	case <-a.Shutdown(): // exit
-//	}
+//	a, err := app.New(cfg, signals, checkReload).Run()
+//	<-a.Done()
+//	if a.Restarting() { /* build the next App */ } else { /* exit */ }
 package app
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
@@ -27,35 +28,39 @@ import (
 	"github.com/womat/golib/v2/web"
 )
 
-// VERSION holds the version information with the following logic in mind
+// VERSION is the application version, following semantic versioning
+// as described in https://semver.org/.
 //
-//	4 ... fixed
-//	0 ... year 2020, 1->year 2021, etc.
-//	7 ... month of year (7=July)
-//	the date format after the + is always the first of the month
-//
-// VERSION differs from semantic versioning as described in https://semver.org/
-// but we keep the correct syntax.
-// TODO: increase version number
-const (
-	VERSION = "1.6.2+20260228"
-	MODULE  = "demo_app"
+// It is not maintained in source: the Git tag is the single source of truth and
+// the value is injected at build time via -ldflags (see Makefile). The "dev"
+// default applies to builds made without them.
+var VERSION = "dev"
 
-	ModeStop    = 0
-	ModeRestart = 1
+const MODULE = "demo_app"
+
+// mode is what shutdownProcedure does after the App has stopped.
+type mode string
+
+const (
+	modeStop    mode = "stop"    // the process exits
+	modeRestart mode = "restart" // cmd builds the next App with the reloaded configuration
 )
 
-// App is where the application is wired up.
+// ErrPermanent marks a start failure that a restart cannot fix, such as a TLS certificate that
+// cannot be loaded: it needs someone to repair it. cmd ends demo_app with exit code 78 for it, so
+// systemd leaves the service stopped instead of restarting it into the same error.
+var ErrPermanent = errors.New("restarting does not help")
+
+// App is where the application is wired up: one App lives for one configuration.
 type App struct {
-	wg          sync.WaitGroup   // wait group to track running webserver
-	baseDir     string           // working directory
+	wg          sync.WaitGroup   // tracks the web server goroutines; add your own here
 	config      *Config          // app configuration
 	web         *http.Server     // HTTP server
 	signals     <-chan os.Signal // OS signals, subscribed once by the caller for all lifecycles
 	checkReload func() error     // loads and validates the config file before a SIGHUP restart
 	serverErr   chan error       // reports a web server that stopped on its own
-	restart     chan struct{}    // signals application restart
-	shutdown    chan struct{}    // signals application shutdown
+	done        chan struct{}    // closed once the App has stopped, see Done
+	restarting  bool             // set before done is closed, see Restarting
 	ctx         context.Context
 	cancelFunc  context.CancelFunc
 
@@ -72,46 +77,43 @@ type App struct {
 // checkReload is called on SIGHUP before anything is torn down. If it reports an error, the
 // restart is refused and the App keeps running with its current configuration, so a broken
 // config file cannot stop the service. Passing nil skips the check.
-func New(config *Config, baseDir string, signals <-chan os.Signal, checkReload func() error) *App {
+func New(config *Config, signals <-chan os.Signal, checkReload func() error) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &App{
-		baseDir:     baseDir,
 		config:      config,
 		signals:     signals,
 		checkReload: checkReload,
-		serverErr:   make(chan error, 1),
 		web: &http.Server{
 			Addr: net.JoinHostPort(config.Webserver.ListenHost, strconv.Itoa(config.Webserver.ListenPort)),
 		},
-
-		restart:    make(chan struct{}),
-		shutdown:   make(chan struct{}),
+		serverErr:  make(chan error, 1),
+		done:       make(chan struct{}),
 		ctx:        ctx,
 		cancelFunc: cancel,
 	}
 }
 
-// Run initializes the application, starts services,
-// and the web server, and sets up OS signal handling.
+// Run initializes the application, starts the services and the web server, and sets up OS
+// signal handling.
 func (app *App) Run() (*App, error) {
-	slog.Info("Initializing application")
+	slog.Debug("Initializing application")
 
-	if err := app.Init(); err != nil {
+	if err := app.setup(); err != nil {
 		return app, app.abort(err)
 	}
 
 	// here start your services
 
-	// handle the OS signals
-	app.HandleOSSignals()
-
 	slog.Info("Starting web server", "url", app.web.Addr)
-	err := app.StartWebServer()
-	if err != nil {
+	if err := app.startWebServer(); err != nil {
 		slog.Error("Web server failed to start", "url", app.web.Addr, "error", err)
 		return app, app.abort(err)
 	}
+
+	// Handle the OS signals only once nothing can fail any more. A signal that is already
+	// waiting would otherwise start a shutdown alongside abort, and be lost to the next App.
+	app.handleSignals()
 
 	slog.Info("Module started successfully",
 		"module", MODULE,
@@ -121,10 +123,10 @@ func (app *App) Run() (*App, error) {
 	return app, nil
 }
 
-// Init prepares the application:
-// - initialize serives
+// setup prepares the application:
+// - initializes the services
 // - initializes API routes
-func (app *App) Init() (err error) {
+func (app *App) setup() error {
 
 	// here initialize your services
 
@@ -134,30 +136,47 @@ func (app *App) Init() (err error) {
 		slog.Warn("Token file is not protected", "error", err)
 	}
 
-	// initRoutes should always be called at the end
+	// setupRoutes should always be called at the end
 	slog.Debug("Initializing API routes")
-	app.SetupRoutes()
+	app.setupRoutes()
+	app.logTokens()
 
 	return nil
 }
 
-// Restart returns a read-only channel for restart signals.
-func (app *App) Restart() <-chan struct{} {
-	return app.restart
+// logTokens names the bearer tokens the protected routes accept, or warns that there are none.
+func (app *App) logTokens() {
+	names := make([]string, 0, len(app.config.Webserver.Tokens))
+	for _, t := range app.config.Webserver.Tokens {
+		names = append(names, t.Name)
+	}
+	if len(names) == 0 {
+		slog.Warn("No bearer tokens loaded, every request to /health is rejected",
+			"tokenFile", app.config.Webserver.TokenFile)
+		return
+	}
+	slog.Info("Bearer tokens loaded", "tokenFile", app.config.Webserver.TokenFile, "names", names)
 }
 
-// Shutdown returns a read-only channel for shutdown signals.
-func (app *App) Shutdown() <-chan struct{} {
-	return app.shutdown
+// Done is closed once the App has stopped and released everything: after SIGHUP, SIGTERM or
+// SIGINT, or a web server that stopped on its own. Restarting then tells what comes next.
+func (app *App) Done() <-chan struct{} {
+	return app.done
 }
 
-// HandleOSSignals handles SIGHUP (restart), SIGTERM and SIGINT (stop) from app.signals, and
+// Restarting reports, once Done is closed, whether the App stopped to be replaced by one with
+// the reloaded configuration (SIGHUP, web server error); false means the process exits.
+func (app *App) Restarting() bool {
+	return app.restarting
+}
+
+// handleSignals handles SIGHUP (restart), SIGTERM and SIGINT (stop) from app.signals, and
 // restarts the App when the web server stopped on its own.
 //
 // The subscription itself belongs to the caller and outlives this App, so nothing here
 // stops or resets it; one goroutine per App consumes at most one signal. Being the only
 // caller of shutdownProcedure, it also rules out two shutdowns running at once.
-func (app *App) HandleOSSignals() {
+func (app *App) handleSignals() {
 
 	go func() {
 		slog.Debug("Starting signal handler")
@@ -165,7 +184,7 @@ func (app *App) HandleOSSignals() {
 		// Use select instead of a plain channel receive so the goroutine has
 		// two exit paths and always terminates cleanly:
 		//   - a signal or a server error is received and handled, or
-		//   - the context is cancelled externally (e.g. from a failed Run).
+		//   - the context is cancelled externally (e.g. from a concurrent shutdown).
 		// Without the second path the goroutine would outlive its App and take
 		// the next signal away from the App that replaced it. The loop only
 		// continues after a SIGHUP whose config was rejected.
@@ -182,15 +201,15 @@ func (app *App) HandleOSSignals() {
 						}
 					}
 					slog.Info("SIGHUP received, initiating restart")
-					app.shutdownProcedure(ModeRestart)
+					app.shutdownProcedure(modeRestart)
 				case syscall.SIGTERM, syscall.SIGINT:
 					slog.Info("SIGTERM/SIGINT received, stopping")
-					app.shutdownProcedure(ModeStop)
+					app.shutdownProcedure(modeStop)
 				}
 				return
 			case err := <-app.serverErr:
 				slog.Error("Web server stopped unexpectedly, initiating restart", "error", err)
-				app.shutdownProcedure(ModeRestart)
+				app.shutdownProcedure(modeRestart)
 				return
 			case <-app.ctx.Done():
 				// Context was cancelled externally – exit without triggering
@@ -202,38 +221,26 @@ func (app *App) HandleOSSignals() {
 	}()
 }
 
-// shutdownProcedure gracefully stops or restarts the app based on mode.
-//   - ModeStop: graceful shutdown the web server, Cleanup app resources and exit the application.
-//   - ModeRestart: graceful shutdown the web server and Cleanup app resources and restart the application.
-func (app *App) shutdownProcedure(mode int) {
-	slog.Info("Initiating shutdown", "mode", mode)
+// shutdownProcedure stops the App and closes Done; m decides what Restarting reports. Closing
+// instead of sending means it never blocks on a caller that is not listening.
+func (app *App) shutdownProcedure(m mode) {
+	slog.Info("Initiating shutdown", "mode", m)
 
-	// cancel the application context to stop all running goroutines
-	app.cancelFunc()
-	app.wg.Wait() //wait for the web server to shutdown before cleaning up resources
+	app.stop()
 
-	if err := app.Cleanup(); err != nil {
-		slog.Error("Cleanup failed", "error", err)
-	}
-
-	switch mode {
-	case ModeRestart:
+	app.restarting = m == modeRestart
+	if app.restarting {
 		slog.Info("Shutdown complete, restarting")
-		app.restart <- struct{}{}
-		// Channels are intentionally left open: cmd/main.go receives the restart
-		// signal and calls New(), which creates fresh channels for the next lifecycle.
-	case ModeStop:
+	} else {
 		slog.Info("Module stopped", "module", MODULE, "version", VERSION, "pid", os.Getpid())
-		app.shutdown <- struct{}{}
-		close(app.shutdown)
 	}
-
+	close(app.done)
 }
 
-// Cleanup releases application resources.
+// cleanup releases application resources.
 // It's called when the application is shutdown or restarted.
 // Should be used to free up resources.
-func (app *App) Cleanup() error {
+func (app *App) cleanup() error {
 	var errs error
 
 	// here cleanup your service
@@ -242,13 +249,19 @@ func (app *App) Cleanup() error {
 }
 
 // abort undoes a Run that failed half way: it stops the goroutines already started and
-// releases what Init and Run acquired, so the caller can start another App with the same
-// port. It returns err.
+// releases what setup acquired, so the caller can start another App with the same port. It
+// returns err.
 func (app *App) abort(err error) error {
+	app.stop()
+	return err
+}
+
+// stop cancels the App's context, waits for the web server and the other goroutines, and then
+// releases the resources.
+func (app *App) stop() {
 	app.cancelFunc()
 	app.wg.Wait()
-	if cerr := app.Cleanup(); cerr != nil {
-		slog.Error("Cleanup failed", "error", cerr)
+	if err := app.cleanup(); err != nil {
+		slog.Error("Cleanup failed", "error", err)
 	}
-	return err
 }

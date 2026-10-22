@@ -3,6 +3,7 @@ package app
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -96,14 +97,7 @@ func TokenFile(fileName string) (string, error) {
 func readConfig(fileName string) (*Config, error) {
 	cfg := NewConfig()
 
-	fileInfo, err := os.Stat(fileName)
-	if err != nil {
-		return cfg, err
-	}
-	if fileInfo.IsDir() {
-		return cfg, errors.New("config path is a directory, not a file")
-	}
-
+	// A directory fails here too, with "is a directory".
 	content, err := os.ReadFile(fileName)
 	if err != nil {
 		return cfg, err
@@ -115,8 +109,11 @@ func readConfig(fileName string) (*Config, error) {
 		return cfg, err
 	}
 
-	// Unmarshal YAML into the config struct
-	if err = yaml.Unmarshal([]byte(replaced), cfg); err != nil {
+	// Unknown keys are an error rather than ignored, so a misspelled or renamed key cannot
+	// silently leave its setting at the default.
+	dec := yaml.NewDecoder(strings.NewReader(replaced))
+	dec.KnownFields(true)
+	if err = dec.Decode(cfg); err != nil && !errors.Is(err, io.EOF) {
 		return cfg, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
