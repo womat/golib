@@ -85,9 +85,10 @@ func matchToken(tokens []Token, token string) (string, bool) {
 // ReadTokenFile reads the tokens from a token file.
 //
 // The format is one token per line, "<name> <sha256 as 64 hex characters>".
-// Blank lines and lines starting with # are ignored. A malformed line or a
-// name that appears twice is an error, so that a broken file stops the service
-// at start instead of rejecting every request with 401.
+// Blank lines and lines starting with # are ignored. A malformed line, or a
+// name or hash that appears twice, is an error, so that a broken file stops the
+// service at start instead of rejecting every request with 401 or logging the
+// wrong caller.
 func ReadTokenFile(path string) ([]Token, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -104,7 +105,8 @@ func ReadTokenFile(path string) ([]Token, error) {
 
 func parseTokens(r io.Reader) ([]Token, error) {
 	var tokens []Token
-	seen := make(map[string]int)
+	seen := make(map[string]int)                   // name -> line
+	seenHash := make(map[[sha256.Size]byte]string) // hash -> name
 
 	scanner := bufio.NewScanner(r)
 	for n := 1; scanner.Scan(); n++ {
@@ -134,6 +136,12 @@ func parseTokens(r io.Reader) ([]Token, error) {
 
 		t := Token{Name: name}
 		copy(t.Hash[:], b)
+
+		// One token under two names would be logged as whichever matched last.
+		if other, ok := seenHash[t.Hash]; ok {
+			return nil, fmt.Errorf("line %d: %q has the same hash as %q in line %d", n, name, other, seen[other])
+		}
+		seenHash[t.Hash] = name
 		tokens = append(tokens, t)
 	}
 

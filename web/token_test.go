@@ -87,6 +87,7 @@ func TestParseTokensRejectsBrokenLines(t *testing.T) {
 		"not hex":        "nodered " + strings.Repeat("z", 64) + "\n",
 		"invalid name":   "node:red " + hashHex("x") + "\n",
 		"duplicate name": "a " + hashHex("x") + "\na " + hashHex("y") + "\n",
+		"duplicate hash": "a " + hashHex("x") + "\nb " + hashHex("x") + "\n",
 	}
 	for name, in := range tests {
 		t.Run(name, func(t *testing.T) {
