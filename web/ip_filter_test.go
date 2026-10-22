@@ -49,6 +49,9 @@ func TestWithIPFilter(t *testing.T) {
 		{"ipv6 cidr", []string{"2001:db8::/32"}, nil, "[2001:db8::1]:1234", http.StatusOK},
 		{"ipv4 mapped ipv6", []string{"127.0.0.1"}, nil, "[::ffff:127.0.0.1]:1234", http.StatusOK},
 		{"ipv4 mapped ipv6 in cidr", []string{"10.0.0.0/8"}, nil, "[::ffff:10.1.2.3]:1234", http.StatusOK},
+		// A link-local client arrives with its zone; the lists name the address alone.
+		{"link-local with zone allowed", []string{"fe80::/10"}, nil, "[fe80::1%en0]:1234", http.StatusOK},
+		{"link-local with zone blocked", nil, []string{"fe80::1"}, "[fe80::1%en0]:1234", http.StatusForbidden},
 	}
 
 	for _, tt := range tests {

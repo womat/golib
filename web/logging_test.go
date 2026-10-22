@@ -226,6 +226,22 @@ func TestWithLoggingIgnoresWriteHeaderAfterWrite(t *testing.T) {
 	}
 }
 
+// An informational 1xx comes before the response; the log must show the final status.
+func TestWithLoggingIgnoresInformationalStatus(t *testing.T) {
+	logger, buf := testLogger()
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusEarlyHints)
+		w.WriteHeader(http.StatusNotFound)
+	})
+
+	WithLogging(handler, logger).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if !strings.Contains(buf.String(), "response.status=404") || !strings.Contains(buf.String(), "level=WARN") {
+		t.Errorf("want status 404 at WARN in the log:\n%s", buf)
+	}
+}
+
 // TestWithLoggingLevelFollowsStatus is the fix for an access log that was
 // written at debug level and therefore invisible in production.
 func TestWithLoggingLevelFollowsStatus(t *testing.T) {

@@ -98,9 +98,10 @@ type logResponse struct {
 	wroteHeader bool
 }
 
-// WriteHeader captures the status code.
+// WriteHeader captures the status code. An informational 1xx goes out ahead of
+// the response and is not the status the log reports.
 func (lr *logResponse) WriteHeader(status int) {
-	if !lr.wroteHeader {
+	if !lr.wroteHeader && status >= http.StatusOK {
 		lr.status = status
 		lr.wroteHeader = true
 	}

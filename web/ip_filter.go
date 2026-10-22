@@ -161,7 +161,10 @@ func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFil
 				return
 			}
 
-			ip := net.ParseIP(remoteAddr)
+			// A link-local client comes with its zone (fe80::1%eth0); the lists
+			// name addresses only.
+			host, _, _ := strings.Cut(remoteAddr, "%")
+			ip := net.ParseIP(host)
 			if ip == nil {
 				log.Warn("Unparsable remote address, request rejected", "remoteAddress", remoteAddr)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))

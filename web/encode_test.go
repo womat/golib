@@ -93,11 +93,14 @@ func TestDecodeInvalidJSON(t *testing.T) {
 }
 
 func TestDecodeRejectsTrailingData(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"name":"a"} and then some`))
-	rec := httptest.NewRecorder()
+	// A closing bracket is trailing data too, though json.Decoder.More does not see it.
+	for _, body := range []string{`{"name":"a"} and then some`, `{"name":"a"}}`, `{"name":"a"} ]`} {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
+		rec := httptest.NewRecorder()
 
-	if _, err := Decode[payload](rec, req); err == nil {
-		t.Error("Decode accepted data after the JSON value")
+		if _, err := Decode[payload](rec, req); err == nil {
+			t.Errorf("Decode accepted data after the JSON value in %q", body)
+		}
 	}
 }
 

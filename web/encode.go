@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 )
 
@@ -53,7 +54,9 @@ func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 		return v, fmt.Errorf("decode json: %w", err)
 	}
 
-	if dec.More() {
+	// Anything but the end of the body is trailing data; dec.More would miss a
+	// closing bracket.
+	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
 		return v, errors.New("decode json: unexpected data after the json value")
 	}
 
