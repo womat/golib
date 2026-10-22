@@ -33,7 +33,6 @@
 //	    cfg := web.Config{Tokens: tokens}
 //
 //	    mux := http.NewServeMux()
-//	    mux.Handle("OPTIONS /", web.HandlePreflight())
 //	    mux.Handle("GET /health", web.WithAuth(handleHealth(), cfg))
 //
 //	    // Wrap in this order; the last wrapper is the outermost one, so

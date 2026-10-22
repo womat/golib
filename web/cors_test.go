@@ -32,8 +32,8 @@ func TestWithCORSDefault(t *testing.T) {
 }
 
 func TestWithCORSPassesEveryMethodThrough(t *testing.T) {
-	// OPTIONS is not answered here; the preflight route has to be registered
-	// separately, see HandlePreflight.
+	// A plain OPTIONS, without Access-Control-Request-Method, is no preflight
+	// and belongs to the handler.
 	reached := false
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)
 	rec := httptest.NewRecorder()
@@ -42,6 +42,56 @@ func TestWithCORSPassesEveryMethodThrough(t *testing.T) {
 
 	if !reached {
 		t.Error("OPTIONS did not reach the handler")
+	}
+}
+
+func TestWithCORSAnswersPreflight(t *testing.T) {
+	reached := false
+	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	rec := httptest.NewRecorder()
+
+	WithCORS(okHandler(&reached)).ServeHTTP(rec, req)
+
+	if reached {
+		t.Error("the preflight reached the handler - behind WithAuth it would get 401")
+	}
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNoContent)
+	}
+	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "*" {
+		t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
+	}
+}
+
+// Without an "OPTIONS /" route the mux tells an unknown path (404) from a
+// known one asked with the wrong method (405); WithCORS still answers the
+// preflight for both.
+func TestWithCORSLetsTheMuxAnswer404And405(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.Handle("GET /known", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	handler := WithCORS(mux)
+
+	for _, tt := range []struct {
+		method, path string
+		preflight    bool
+		want         int
+	}{
+		{http.MethodGet, "/known", false, http.StatusOK},
+		{http.MethodGet, "/nope", false, http.StatusNotFound},
+		{http.MethodPost, "/known", false, http.StatusMethodNotAllowed},
+		{http.MethodOptions, "/known", true, http.StatusNoContent},
+	} {
+		req := httptest.NewRequest(tt.method, tt.path, nil)
+		if tt.preflight {
+			req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+		}
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != tt.want {
+			t.Errorf("%s %s: status = %d, want %d", tt.method, tt.path, rec.Code, tt.want)
+		}
 	}
 }
 

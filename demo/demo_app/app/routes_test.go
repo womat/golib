@@ -39,7 +39,8 @@ func TestRoutes(t *testing.T) {
 		{"health needs a token", http.MethodGet, "/health", "", http.StatusUnauthorized},
 		{"health refuses a wrong token", http.MethodGet, "/health", "other", http.StatusUnauthorized},
 		{"health with the token", http.MethodGet, "/health", "the-token", http.StatusOK},
-		{"preflight needs no token", http.MethodOptions, "/health", "", http.StatusNoContent},
+		{"unknown path", http.MethodGet, "/nope", "the-token", http.StatusNotFound},
+		{"known path, wrong method", http.MethodPost, "/health", "the-token", http.StatusMethodNotAllowed},
 	}
 
 	for _, tt := range tests {
@@ -60,6 +61,20 @@ func TestRoutes(t *testing.T) {
 				t.Errorf("Access-Control-Allow-Origin = %q, want *", got)
 			}
 		})
+	}
+}
+
+func TestRoutesAnswerThePreflightWithoutToken(t *testing.T) {
+	app := routedApp(t, nil)
+
+	req := httptest.NewRequest(http.MethodOptions, "/health", nil)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodGet)
+	rec := httptest.NewRecorder()
+	app.web.Handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusNoContent {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNoContent)
 	}
 }
 

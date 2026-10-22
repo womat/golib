@@ -10,20 +10,17 @@ import (
 // SetupRoutes configures all HTTP routes and global middleware for the application:
 //   - GET /version - public, no authentication
 //   - GET /health - protected, a bearer token from the token file via web.WithAuth
-//   - OPTIONS / - the CORS preflight, as its own route so it never meets the
-//     authentication middleware
 //   - GET /swagger/ - only in builds made with -tags swagger
 //
 // It wraps the mux in web.WithCORS, web.WithIPFilter and web.WithLogging, in
-// that order, handing all three the same logger. It must be called during
-// startup, before the HTTP server starts.
+// that order, handing all three the same logger. WithCORS answers the CORS
+// preflight before the mux, so it never meets the authentication middleware;
+// without an "OPTIONS /" route the mux answers 404 and 405 correctly. It must
+// be called during startup, before the HTTP server starts.
 func (app *App) SetupRoutes() {
 	webCfg := web.Config{Tokens: app.config.Webserver.Tokens}
 
 	mux := http.NewServeMux()
-
-	// Preflight CORS requests
-	mux.Handle("OPTIONS /", web.HandlePreflight())
 
 	// Dev-only Swagger documentation (only registered with -tags swagger)
 	app.registerSwaggerRoute(mux)

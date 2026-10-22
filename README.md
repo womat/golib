@@ -52,7 +52,6 @@ if err != nil {
 }
 
 mux := http.NewServeMux()
-mux.Handle("OPTIONS /", web.HandlePreflight())
 mux.Handle("GET /health", web.WithAuth(handleHealth(), web.Config{Tokens: tokens}))
 
 // The last wrapper is the outermost one, so logging sees every request,

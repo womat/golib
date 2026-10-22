@@ -62,8 +62,9 @@ Verify with `git push --dry-run origin main`.
 
 **`web` is middleware, not a framework.** It provides composable `http.Handler` wrappers —
 `WithAuth` (bearer tokens stored as SHA-256 hashes in a token file, read with `ReadTokenFile`;
-`TokenCommand` is the `token add/remove/list` subcommand for a service's `main`), `WithCORS` /
-`HandlePreflight`, `WithIPFilter`, `WithLogging` — plus generic `Encode[T]`/`Decode[T]` JSON
+`TokenCommand` is the `token add/remove/list` subcommand for a service's `main`), `WithCORS`
+(which answers CORS preflights itself, so a mux needs no `OPTIONS /` route — that route would
+turn 404 into 405), `WithIPFilter`, `WithLogging` — plus generic `Encode[T]`/`Decode[T]` JSON
 helpers and `WriteError`/`ApiError` for uniform JSON error bodies. Applications assemble a plain
 `http.ServeMux` and wrap it; see `demo/demo_app/app/routes.go` for the canonical wrapping order
 (`WithCORS`, then `WithIPFilter`, then `WithLogging` — the last wrapper is the outermost, so

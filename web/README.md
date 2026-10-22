@@ -23,11 +23,11 @@ both sections before putting this on a public interface.
 | `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
 | `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -` |
 | `type TokenCommand struct{ … }` / `func (TokenCommand) Run(args []string) int` | the `token add/remove/list` subcommand for a service's `main` |
-| `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers; **does not** answer preflights |
+| `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers and answers preflights itself (204) |
 | `func WithAllowedOrigins(origins ...string) CORSOption` | restrict to a list, echo only on a match, set `Vary: Origin` |
 | `func WithAllowedMethods(methods ...string) CORSOption` | replace the method list |
 | `func WithAllowedHeaders(headers ...string) CORSOption` | replace the request-header list |
-| `func HandlePreflight() http.Handler` | answers `OPTIONS` with 204; register it as its own route |
+| `func HandlePreflight() http.Handler` | answers `OPTIONS` with 204; not needed behind `WithCORS` |
 | `func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFilterOption) http.Handler` | IP and CIDR allow/block lists, parsed once; 403 on rejection |
 | `func WithIPFilterLogger(logger *slog.Logger) IPFilterOption` | where to report unusable list entries, which are found while the middleware is built |
 | `func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Handler` | one entry per request: method, path, status, size, duration; level follows the status |
@@ -116,7 +116,6 @@ Rotating without a gap: `add nodered-2`, move the caller to the new token,
 
 ```go
 mux := http.NewServeMux()
-mux.Handle("OPTIONS /", web.HandlePreflight())          // before any auth
 mux.Handle("GET /version", app.HandleVersion())         // public
 mux.Handle("GET /health", web.WithAuth(app.HandleHealth(), webCfg))
 
@@ -125,15 +124,19 @@ handler = web.WithIPFilter(handler, allowedIPs, blockedIPs)
 handler = web.WithLogging(handler, logger)
 ```
 
-Two traps are worth naming:
-
 **Preflight must not meet `WithAuth`.** A browser sends the `OPTIONS` preflight
-*without* credentials. Registered behind the auth middleware it earns a 401, and
-every cross-origin call fails with a message that says nothing about the real
-cause. Register it as its own route, as above.
+*without* credentials; behind the auth middleware it would earn a 401, and
+every cross-origin call would fail with a message that says nothing about the
+real cause. `WithCORS` therefore answers it itself: an `OPTIONS` request with
+`Access-Control-Request-Method` gets 204 and the CORS headers and never reaches
+the mux. Any other `OPTIONS` request is passed on.
 
-**`WithCORS` does not answer `OPTIONS`.** It only sets headers and passes the
-request on — that is why `HandlePreflight` exists as a separate handler.
+**No `OPTIONS /` route.** Services used to register
+`mux.Handle("OPTIONS /", web.HandlePreflight())`. That pattern matches every
+path, so the mux answers an unknown path with 405 instead of 404. Behind
+`WithCORS` the route is not needed; drop it, and the mux answers 404 for an
+unknown path and 405 for a known one asked with the wrong method. Keeping it
+changes nothing else.
 
 ## CORS
 

@@ -51,9 +51,12 @@ func WithAllowedHeaders(headers ...string) CORSOption {
 
 // WithCORS is a middleware that adds CORS headers to the response.
 //
-// It does not answer preflight requests: OPTIONS is passed on like any other
-// method, so register HandlePreflight for it - and register it outside WithAuth,
-// because a preflight request carries no credentials and would be rejected.
+// It answers preflight requests itself, with 204 and the headers: an OPTIONS
+// request carrying Access-Control-Request-Method never reaches the handler.
+// A preflight carries no credentials, so behind WithAuth it would be rejected,
+// and a mux needs no "OPTIONS /" route for it - such a route matches every
+// path and turns the mux's 404 for an unknown one into 405. Any other OPTIONS
+// request is passed on like every other method.
 func WithCORS(next http.Handler, opts ...CORSOption) http.Handler {
 	cfg := corsConfig{
 		methods: defaultAllowedMethods,
@@ -76,6 +79,11 @@ func WithCORS(next http.Handler, opts ...CORSOption) http.Handler {
 			w.Header().Set("Access-Control-Allow-Methods", cfg.methods)
 			w.Header().Set("Access-Control-Allow-Headers", cfg.headers)
 			w.Header().Set("Access-Control-Max-Age", defaultMaxAge)
+
+			if r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != "" {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 
 			next.ServeHTTP(w, r)
 		},
@@ -103,6 +111,11 @@ func (c *corsConfig) allowedOrigin(requestOrigin string) (string, bool) {
 
 // HandlePreflight is a handler for preflight requests.
 // see https://developer.mozilla.org/en-US/docs/Glossary/Preflight_request
+//
+// Behind WithCORS it is not needed: WithCORS answers the preflight before the
+// mux sees it. It stays for services that register "OPTIONS /" without
+// WithCORS in front; with WithCORS, drop that route, so the mux answers an
+// unknown path with 404 instead of 405.
 func HandlePreflight() http.Handler {
 	return http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {
