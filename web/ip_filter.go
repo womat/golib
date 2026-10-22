@@ -74,11 +74,6 @@ func parseIPList(log *slog.Logger, name string, entries []string) ipList {
 	return list
 }
 
-// empty reports whether the list holds no usable entry.
-func (l ipList) empty() bool {
-	return len(l.addrs) == 0 && len(l.nets) == 0
-}
-
 // contains reports whether ip matches one of the addresses or networks.
 func (l ipList) contains(ip net.IP) bool {
 	for _, addr := range l.addrs {
@@ -156,10 +151,10 @@ func WithIPFilter(h http.Handler, allowedIPs, blockedIPs []string, opts ...IPFil
 				return
 			}
 
-			// An allowlist that was configured but holds nothing usable rejects
-			// everything; one that was never configured allows everything.
-			if !allowed.empty() && !allowed.contains(ip) ||
-				allowed.empty() && allowed.configured {
+			// A configured allowlist admits only what it contains, so one that
+			// holds nothing usable rejects everything; one that was never
+			// configured allows everything.
+			if allowed.configured && !allowed.contains(ip) {
 				log.Warn("IP not allowed", "remoteAddress", remoteAddr)
 				Encode(w, http.StatusForbidden, NewApiError(ErrForbidden))
 				return

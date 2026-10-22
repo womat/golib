@@ -20,7 +20,6 @@ type corsConfig struct {
 	origins []string // empty means "*"
 	methods string
 	headers string
-	maxAge  string
 }
 
 // WithAllowedOrigins restricts the allowed origins to the given list.
@@ -59,7 +58,6 @@ func WithCORS(next http.Handler, opts ...CORSOption) http.Handler {
 	cfg := corsConfig{
 		methods: defaultAllowedMethods,
 		headers: defaultAllowedHeaders,
-		maxAge:  defaultMaxAge,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
@@ -77,7 +75,7 @@ func WithCORS(next http.Handler, opts ...CORSOption) http.Handler {
 			}
 			w.Header().Set("Access-Control-Allow-Methods", cfg.methods)
 			w.Header().Set("Access-Control-Allow-Headers", cfg.headers)
-			w.Header().Set("Access-Control-Max-Age", cfg.maxAge)
+			w.Header().Set("Access-Control-Max-Age", defaultMaxAge)
 
 			next.ServeHTTP(w, r)
 		},

@@ -263,3 +263,14 @@ func fillAndClose(f *os.File, content []byte, mode fs.FileMode, info fs.FileInfo
 	}
 	return err
 }
+
+// copyOwner gives f the owner and group recorded in info. Without it a token
+// file rewritten by root would end up as root:root, and a service reading it
+// through its group would lose access.
+func copyOwner(f *os.File, info fs.FileInfo) error {
+	uid, gid, ok := fileOwner(info)
+	if !ok || uid == os.Geteuid() && gid == os.Getegid() {
+		return nil // nothing to copy, or already right and needs no privilege
+	}
+	return f.Chown(uid, gid)
+}
