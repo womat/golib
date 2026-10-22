@@ -20,7 +20,7 @@ both sections before putting this on a public interface.
 | `type Token struct{ Name string; Hash [32]byte }` | one accepted bearer token: the name of its caller and the SHA-256 of the token |
 | `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line, a duplicate name or a duplicate hash is an error |
 | `func CheckTokenFile(path string) error` | `ErrTokenFileWritable` if the running process could change the token file or its directory; log it as a warning |
-| `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound` |
+| `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrTokenExists`, `ErrTokenNotFound`; add refuses a hash already in the file |
 | `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -` |
 | `type TokenCommand struct{ … }` / `func (TokenCommand) Run(args []string) int` | the `token add/remove/list` subcommand for a service's `main` |
 | `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers and answers preflights itself (204) |
@@ -263,6 +263,10 @@ Known and deliberately left alone:
 - **No lock around `AddTokenToFile` and `RemoveTokenFromFile`.** Two `token`
   commands at the same moment can lose one change: both read, both replace.
   It is a command an administrator runs by hand, one at a time.
+- **`token add -dry-run` does not check the token file.** It only prints the
+  line, also when the name is taken; pasted in by hand, that line stops the
+  service at its next start with the duplicate named. The dry run is the way
+  out when the token file cannot be written, so it does not depend on reading it.
 - **A token file that is a symlink becomes a regular file** on `add` or
   `remove`: the rename replaces the link, and its old target is left as it
   was. Point the config at the real file instead.

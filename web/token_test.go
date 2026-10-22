@@ -128,6 +128,9 @@ func TestAddAndRemoveTokenKeepComments(t *testing.T) {
 	if err := AddTokenToFile(path, "grafana", HashToken("three")); !errors.Is(err, ErrTokenExists) {
 		t.Errorf("adding a taken name: err = %v, want ErrTokenExists", err)
 	}
+	if err := AddTokenToFile(path, "influx", HashToken("two")); err == nil {
+		t.Error("adding a taken hash under a new name: accepted")
+	}
 
 	tokens, err := ReadTokenFile(path)
 	if err != nil {

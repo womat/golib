@@ -151,7 +151,8 @@ func parseTokens(r io.Reader) ([]Token, error) {
 }
 
 // AddTokenToFile adds a token to the token file at path, creating the file if
-// it does not exist. It fails with ErrTokenExists if the name is taken.
+// it does not exist. It fails with ErrTokenExists if the name is taken, and
+// with an error if the hash is already in the file under another name.
 //
 // Comments and the order of the other lines are kept. The file is replaced
 // atomically and keeps its mode, owner and group; a new file gets mode 0640.
@@ -172,6 +173,10 @@ func AddTokenToFile(path, name string, hash [sha256.Size]byte) error {
 	for _, t := range tokens {
 		if t.Name == name {
 			return fmt.Errorf("%w: %q", ErrTokenExists, name)
+		}
+		// Written anyway, the file would stop the service at its next start.
+		if t.Hash == hash {
+			return fmt.Errorf("%q has the same hash as %q", name, t.Name)
 		}
 	}
 
