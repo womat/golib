@@ -252,8 +252,16 @@ Known and deliberately left alone:
 - **No rate limiting.** Failed authentication shows only as a 401 with its
   `request.client` in the access log, and only where `WithLogging` is in the
   chain.
-- **Token files are read once, at start.** A change needs a restart of the
-  service; there is no reload on change or on a signal.
+- **`web` does not watch the token file.** `ReadTokenFile` reads it when the
+  service calls it — at start, and on `SIGHUP` in services built like
+  `demo_app`, which rebuild everything on reload. Nothing notices a change on
+  its own.
+- **No lock around `AddTokenToFile` and `RemoveTokenFromFile`.** Two `token`
+  commands at the same moment can lose one change: both read, both replace.
+  It is a command an administrator runs by hand, one at a time.
+- **A token file that is a symlink becomes a regular file** on `add` or
+  `remove`: the rename replaces the link, and its old target is left as it
+  was. Point the config at the real file instead.
 - **`HashToken` is plain SHA-256, unsalted.** Right for the random 32-byte
   tokens `NewToken` makes, which cannot be enumerated; wrong for anything a
   person chose. Do not use it for passwords.
