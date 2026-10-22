@@ -70,17 +70,24 @@ func TestWithIPFilter(t *testing.T) {
 }
 
 func TestWithIPFilterMalformedRemoteAddr(t *testing.T) {
-	reached := false
-	rec := httptest.NewRecorder()
+	for name, remoteAddr := range map[string]string{
+		"no port":      "no-port-here",
+		"host, not ip": "not-an-ip:1234",
+	} {
+		t.Run(name, func(t *testing.T) {
+			reached := false
+			rec := httptest.NewRecorder()
 
-	WithIPFilter(okHandler(&reached), []string{"127.0.0.1"}, nil).
-		ServeHTTP(rec, requestFrom("no-port-here"))
+			WithIPFilter(okHandler(&reached), []string{"127.0.0.1"}, nil).
+				ServeHTTP(rec, requestFrom(remoteAddr))
 
-	if reached {
-		t.Error("a request with an unparsable address reached the handler")
-	}
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want %d - an unparsable address is a rejection, not a server fault", rec.Code, http.StatusForbidden)
+			if reached {
+				t.Error("a request with an unparsable address reached the handler")
+			}
+			if rec.Code != http.StatusForbidden {
+				t.Errorf("status = %d, want %d - an unparsable address is a rejection, not a server fault", rec.Code, http.StatusForbidden)
+			}
+		})
 	}
 }
 

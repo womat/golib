@@ -159,6 +159,29 @@ func TestTokenCommandShowsNoTokenWhenItCannotWrite(t *testing.T) {
 	}
 }
 
+// failingWriter refuses every write, like a closed pipe.
+type failingWriter struct{}
+
+func (failingWriter) Write([]byte) (int, error) { return 0, errors.New("broken pipe") }
+
+// TestTokenCommandAddCannotPrint: the token is stored but lost, so add fails
+// and says how to take the useless entry out again.
+func TestTokenCommandAddCannotPrint(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "token-hashes")
+	cmd, _, _, stderr := tokenCmd(t, path)
+	cmd.Stdout = failingWriter{}
+
+	if code := cmd.Run([]string{"add", "nodered"}); code != 1 {
+		t.Errorf("exit %d, want 1", code)
+	}
+	if tokens, _ := ReadTokenFile(path); len(tokens) != 1 {
+		t.Errorf("file holds %+v, want the one entry that was written", tokens)
+	}
+	if !strings.Contains(stderr.String(), "remove it with: demo token remove nodered") {
+		t.Errorf("no hint how to remove the entry: %s", stderr)
+	}
+}
+
 func TestTokenCommandUsage(t *testing.T) {
 	cmd, _, _, _ := tokenCmd(t, filepath.Join(t.TempDir(), "token-hashes"))
 
