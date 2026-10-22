@@ -88,6 +88,11 @@ jobs:
       # and the logging middleware shares its first-access set between them.
       - name: go test
         run: go test -race -cover ./...
+      # Tests named *AsRoot skip without root: only root can create a file for
+      # another user, which is what the token file ownership tests need. Own
+      # cache, so no root-owned files are left in the runner's.
+      - name: go test as root
+        run: sudo env "PATH=$PATH" GOCACHE=/tmp/go-root-cache go test -run 'AsRoot$' ./...
 
   cross:
     name: cross-compile library (${{ matrix.name }})

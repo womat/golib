@@ -21,8 +21,11 @@ import (
 // that succeeded, on stdout and nowhere else; explanations go to stderr. With
 // -dry-run it prints the token and the line for the file without writing
 // anything. A token file that does not exist yet is created with mode 0640
-// and the owner and group of the config file, so a service that reads its
-// config through its group can read the tokens too.
+// and the group of the config file, so a service that reads its config
+// through its group can read the tokens too. The owner stays whoever ran the
+// command - root, normally - and is never taken from the config file: in an
+// old layout that belongs to the service user, who could then write the
+// token file and add their own token.
 //
 // The service hangs it into its main before parsing its own flags:
 //
@@ -140,8 +143,8 @@ func (c TokenCommand) add(stdout, stderr *printer, configPath, name string, dryR
 	}
 
 	if created {
-		if err := chownLike(path, configPath); err != nil {
-			stderr.printf("warning: created %s, but could not give it the owner of %s: %v\n", path, configPath, err)
+		if err := chgrpLike(path, configPath); err != nil {
+			stderr.printf("warning: created %s, but could not give it the group of %s: %v\n", path, configPath, err)
 		}
 	}
 
@@ -242,18 +245,15 @@ func (p *printer) printf(format string, args ...any) {
 	}
 }
 
-// chownLike gives path the owner and group of ref.
-func chownLike(path, ref string) error {
+// chgrpLike gives path the group of ref; the owner is left alone.
+func chgrpLike(path, ref string) error {
 	info, err := os.Stat(ref)
 	if err != nil {
 		return err
 	}
-	uid, gid, ok := fileOwner(info)
-	if !ok {
+	_, gid, ok := fileOwner(info)
+	if !ok || gid == os.Getegid() {
 		return nil
 	}
-	if uid == os.Geteuid() && gid == os.Getegid() {
-		return nil
-	}
-	return os.Chown(path, uid, gid)
+	return os.Chown(path, -1, gid)
 }

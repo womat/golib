@@ -134,7 +134,8 @@ finding or record the decision.**
 are pinned to a commit SHA with the release in a comment — never a movable tag like `@v7`;
 dependabot updates the pins. Six jobs: `format` (gofmt over the whole tree), `checks`
 (`scripts/check.sh --check`, so the CI and the local command cannot drift apart), `library` (vet
-plus `go test -race -cover`), `cross` (Pi targets, Linux amd64/386, Windows, macOS), `demo_app`
+plus `go test -race -cover`, then the `*AsRoot` tests again under `sudo` — they skip without
+root, so name a test that way when it needs root), `cross` (Pi targets, Linux amd64/386, Windows, macOS), `demo_app`
 (certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target per `build_*`
 recipe in its Makefile). When adding a demo module, extend the matrices: a new module is
 invisible to every existing job.

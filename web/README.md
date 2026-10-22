@@ -92,8 +92,10 @@ service's `main` (see its doc comment):
 token file is the one that config names. The token goes to stdout alone, so
 `TOKEN=$(<app> token add nodered)` works; everything else goes to stderr.
 `add` writes before it prints: a token that is shown but stored nowhere cannot
-happen. A new token file gets mode 0640 and the owner and group of the config
-file. Changes apply after a restart of the service; a service that rereads
+happen. A new token file gets mode 0640 and the group of the config file, so
+the service reads it through its group; its owner is whoever ran `add`, root
+on a server. The owner of the config file is deliberately not copied: where it
+is the service user, the service could write its own token file. Changes apply after a restart of the service; a service that rereads
 its token file on reload says so through `TokenCommand.Apply`.
 
 Rotating without a gap: `add nodered-2`, move the caller to the new token,
