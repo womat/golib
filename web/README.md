@@ -107,8 +107,9 @@ token file is the one that config names. The token goes to stdout alone, so
 happen. A new token file gets mode 0640 and the group of the config file, so
 the service reads it through its group; its owner is whoever ran `add`, root
 on a server. The owner of the config file is deliberately not copied: where it
-is the service user, the service could write its own token file. Changes apply after a restart of the service; a service that rereads
-its token file on reload says so through `TokenCommand.Apply`.
+is the service user, the service could write its own token file. Changes
+apply after a restart of the service; a service that rereads its token file
+on reload says so through `TokenCommand.Apply`.
 
 Rotating without a gap: `add nodered-2`, move the caller to the new token,
 `remove nodered`, restart.
@@ -182,6 +183,8 @@ Both lists accept plain addresses (`127.0.0.1`, `::1`) and CIDR networks
   return the handler unwrapped.
 - A request whose `RemoteAddr` cannot be parsed is rejected with 403, like any
   other rejection.
+- A link-local client is matched by its address alone: the zone in its
+  `RemoteAddr` (`fe80::1%eth0`) is ignored, since the lists cannot name one.
 
 **Behind a reverse proxy the filter sees the proxy.** It reads `r.RemoteAddr`
 and nothing else — deliberately, because `X-Forwarded-For` can be set by anyone
@@ -194,7 +197,9 @@ at the proxy in that setup.
 `WithLogging` writes one entry per request: method, path, status, response
 size, duration. **The level follows the response status** — `Error` from 500,
 `Warn` from 400, `Info` below — so the access log is visible at the level a
-service actually runs at; `WithLogLevel` puts every entry at one level. A service that is polled every few seconds can put
+service actually runs at; `WithLogLevel` puts every entry at one level. The
+status is the one the response went out with, not a 1xx sent ahead of it.
+A service that is polled every few seconds can put
 only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
 rejected ones visible as warnings; the first successful request of each
 caller from each client is still logged at `Info` (`firstAccess=true`), so the
@@ -245,7 +250,7 @@ entry goes to the logger in the request context, see
 go test -race ./web/
 ```
 
-Coverage is 91.0 %, with `net/http/httptest` and no network. The error
+Coverage is 93.9 %, with `net/http/httptest` and no network. The error
 branches of the atomic file replacement (a failing write, chmod or sync) are
 not reached.
 

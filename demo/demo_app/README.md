@@ -85,6 +85,11 @@ Only that braced form is expanded. A bare `$NAME` is left alone, so a value like
 an empty string, because an empty secret is the kind of mistake that only shows
 up in production.
 
+Comments are left out, so documenting `${NAME}` in the file itself does not
+demand that `NAME` is set. They are found line by line: in a value that spans
+lines, quoted or a block (`|`, `>`), a `#` behind a blank counts as a comment
+and a `${NAME}` after it stays as it is. No service has such a value.
+
 ### Secrets
 
 The demo holds no secret of its own: callers authenticate with tokens whose

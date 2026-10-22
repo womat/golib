@@ -71,8 +71,8 @@ which `web.TokenCommand` provides; see [`web/README.md`](web/README.md#tokens).
 These hold across the library; the details are in each package's README.
 
 **Functional options.** Configurable constructors take `Option func(*T)` values
-built by `WithX(...)` functions — `web`'s CORS and logging middleware and
-`xlog` follow that shape. New ones should too. Options are applied at
+built by `WithX(...)` functions — `web`'s CORS, IP filter and logging
+middleware and `xlog` follow that shape. New ones should too. Options are applied at
 construction; there are no setters afterwards.
 
 **No global logger.** `web.WithLogging` takes the logger as an argument and
@@ -197,10 +197,35 @@ To move a service from v1 to v2:
 A further split of a package into its own module happens only when it needs a
 version of its own.
 
-**After v2.0.0, `web.ContextKey` was removed** although that breaks the API
-inside v2: any code in the process could build `web.ContextKey("user")` and
-make `UserFrom` report a caller `WithAuth` never authorized. None of the five
-services used the type. Read the caller with `web.UserFrom`.
+### v2.1.0
+
+**`web.ContextKey` was removed** although that breaks the API inside v2: any
+code in the process could build `web.ContextKey("user")` and make `UserFrom`
+report a caller `WithAuth` never authorized. None of the five services used the
+type. Read the caller with `web.UserFrom`.
+
+New, and worth taking up when a service moves to v2.1.0:
+
+- `web.CheckTokenFile` reports a token file the service could change itself;
+  call it at start and log a failure as a warning.
+- `web.ValidateIPList` lets the config check refuse an IP list entry that
+  `WithIPFilter` would only log and skip.
+- `WithCORS` answers preflights itself. Drop the `OPTIONS /` route: it turns
+  the mux's 404 for an unknown path into 405.
+
+Changed behaviour a service may notice:
+
+- A token file with one hash under two names no longer loads; the access log
+  could name the wrong caller.
+- `token add` gives a new token file only the group of the config file, never
+  its owner, and `AddTokenToFile` refuses a hash already in the file.
+- `Encode` answers a value that cannot be marshalled with `ErrInternal`, not
+  with the marshal error.
+- `Decode` refuses a `}` or `]` after the JSON value.
+- `WithIPFilter` matches a link-local client by its address; its zone
+  (`fe80::1%eth0`) used to get it rejected.
+- The access log reports the final status, not a 1xx sent before it, and body
+  logging keeps the request body when reading it fails.
 
 ## Tagging a new version
 
