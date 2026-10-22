@@ -130,6 +130,11 @@ func readConfig(fileName string) (*Config, error) {
 // in a password, say - stays what it is. An undefined variable is an error
 // rather than an empty string, because an empty secret is the kind of mistake
 // that only shows up in production.
+//
+// Comments are found line by line, so in a value that spans lines - a quoted
+// one or a block scalar (| or >) - a "#" behind a blank is taken for a comment
+// and a ${NAME} after it stays as it is. No configuration of these services
+// has such a value; that is why this is not worth a YAML tokenizer.
 func expandEnv(content string) (string, error) {
 	var (
 		missing  []string
