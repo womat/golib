@@ -177,6 +177,38 @@ func TestStopReleasesThePort(t *testing.T) {
 	_ = l.Close()
 }
 
+// A connection that outlasts the graceful shutdown is closed before the App reports Done, so
+// no request runs on with the config of an App that has stopped. A half-sent request keeps
+// the connection active past the 5s that Shutdown waits.
+func TestStopClosesConnectionsThatOutlastShutdown(t *testing.T) {
+	signals := make(chan os.Signal, 1)
+	a, err := New(serverConfig(t, 0), signals, nil).Run()
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	conn, err := tls.Dial("tcp", a.web.Addr, &tls.Config{InsecureSkipVerify: true}) // the embedded dev certificate
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = conn.Close() }()
+	if _, err := conn.Write([]byte("GET /version HTTP/1.1\r\nHost: localhost\r\n")); err != nil {
+		t.Fatal(err)
+	}
+
+	signals <- syscall.SIGTERM
+	select {
+	case <-a.Done():
+	case <-time.After(10 * time.Second):
+		t.Fatal("no stop within 10s")
+	}
+
+	_ = conn.SetReadDeadline(time.Now().Add(time.Second))
+	if _, err := conn.Read(make([]byte, 1)); errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Error("the connection is still open after Done")
+	}
+}
+
 // A signal that waits in the channel while a start fails stays there for the next App: the
 // failed App must not handle it, because its abort would run alongside the shutdown the
 // signal starts.

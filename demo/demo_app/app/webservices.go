@@ -89,6 +89,8 @@ func (app *App) startWebServer() error {
 		defer cancel()
 		if err := app.web.Shutdown(ctxShutdown); err != nil {
 			slog.Error("Failed to shutdown webserver gracefully", "error", err)
+			// Close what is still active, so no request outlives this App and its config.
+			_ = app.web.Close()
 		} else {
 			slog.Info("Webserver stopped gracefully")
 		}
