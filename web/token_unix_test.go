@@ -61,6 +61,29 @@ func TestCheckTokenFileRefusesAWritableDirectory(t *testing.T) {
 	}
 }
 
+func TestCheckTokenFileRefusesAWritableDirectoryAbove(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can write every file; the check does not apply")
+	}
+	// The file and its directory are root's, but whoever can write a directory
+	// further up can swap the directory below it, here the link to /etc.
+	dir := t.TempDir()
+	if err := os.Symlink("/etc", filepath.Join(dir, "etc")); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "etc", "hosts")
+	if info, err := os.Stat(path); err != nil {
+		t.Skip(err)
+	} else if uid, _, _ := fileOwner(info); uid != 0 || info.Mode().Perm()&0o022 != 0 {
+		t.Skipf("%s is not root's alone here", path)
+	}
+
+	err := CheckTokenFile(path)
+	if !errors.Is(err, ErrTokenFileWritable) {
+		t.Errorf("err = %v, want ErrTokenFileWritable", err)
+	}
+}
+
 func TestCheckTokenFileMissingFile(t *testing.T) {
 	err := CheckTokenFile(filepath.Join(t.TempDir(), "missing"))
 	if !errors.Is(err, os.ErrNotExist) {

@@ -291,7 +291,8 @@ func copyOwner(f *os.File, info fs.FileInfo) error {
 // process could change the token file at path - and so add a token of its own.
 // It could if it owns the file or its directory, which lets it chmod them, or
 // if it may write either of them; whoever can write the directory can replace
-// the file. A service calls it at start with the token file it reads, and
+// the file. The same holds for every directory above, up to the root, because
+// whoever can change one of them can swap the directory below. A service calls it at start with the token file it reads, and
 // logs a failure as a warning: the service still works, but its layout lets
 // a compromised service grant itself access.
 //
@@ -309,6 +310,22 @@ func CheckTokenFile(path string) error {
 		}
 		if reason != "" {
 			return fmt.Errorf("%s: %w: %s %s", path, ErrTokenFileWritable, target.what, reason)
+		}
+	}
+
+	// Whoever can change a directory further up can swap the one below it.
+	dir, err := filepath.Abs(filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	for dir != filepath.Dir(dir) {
+		dir = filepath.Dir(dir)
+		reason, err := canChange(dir)
+		if err != nil {
+			return err
+		}
+		if reason != "" {
+			return fmt.Errorf("%s: %w: directory %s %s", path, ErrTokenFileWritable, dir, reason)
 		}
 	}
 	return nil
