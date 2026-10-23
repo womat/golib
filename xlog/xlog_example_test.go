@@ -9,13 +9,13 @@ import (
 	"github.com/womat/golib/v2/xlog"
 )
 
-// ExampleInit zeigt die Verwendung von xlog mit stdout, Datei und null logging.
-// Die stdout-Ausgaben werden für den Example-Test auf null geleitet, damit nur
-// die fmt.Println-Zeilen geprüft werden; das Dateiziel wird dagegen wirklich
-// benutzt, in einem temporären Verzeichnis.
+// ExampleInit shows the three kinds of destination: a named stream, a file and
+// null. A service would log to "stdout"; this example uses "null" there, so
+// that only the fmt.Println lines are compared. The file destination is used
+// for real, in a temporary directory.
 func ExampleInit() {
-	// 1️⃣ Logging to stdout with debug messages (AddSource enabled)
-	// Für den Example-Test auf null, damit Output-Match funktioniert
+	// Debug level, which adds the source file and line. A service passes
+	// "stdout" here; "null" keeps the example's output comparable.
 	stdoutLogger, err := xlog.Init("null", "debug")
 	if err != nil {
 		panic(err)
@@ -29,7 +29,7 @@ func ExampleInit() {
 
 	fmt.Println("---")
 
-	// 2️⃣ Logging to a file with warning level
+	// Logging to a file at warning level.
 	dir, err := os.MkdirTemp("", "xlog-example")
 	if err != nil {
 		panic(err)
@@ -60,7 +60,7 @@ func ExampleInit() {
 	// Count the lines instead of comparing them: each one carries a timestamp.
 	fmt.Printf("log file contains %d lines\n", bytes.Count(content, []byte("\n")))
 
-	// 3️⃣ Discarding all logs (useful for tests)
+	// Discarding all logs, useful in tests.
 	nullLogger, _ := xlog.Init("null", "debug")
 	nullLogger.Debug("This will not appear anywhere")
 	nullLogger.Info("Nor this info")

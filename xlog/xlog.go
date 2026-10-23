@@ -113,8 +113,8 @@ func WithSource(enabled bool) Option {
 //   - dest: "stdout", "stderr", "null", or a file path. The three names are
 //     matched case-insensitively and ignoring surrounding blanks; anything else
 //     is opened as a file, created if missing and appended to otherwise.
-//   - logLevel: "debug", "info", "warning", "error" (default: info), matched
-//     the same way
+//   - logLevel: "debug", "info", "warning" or "warn", "error" (default:
+//     info), matched the same way
 //   - opts: optional settings, currently WithSource
 //
 // Returns a LoggerWrapper and an error if the file cannot be opened.
