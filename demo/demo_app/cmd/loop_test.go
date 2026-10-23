@@ -287,3 +287,37 @@ func TestLoopEndsWithExitConfigWhenLoggerFails(t *testing.T) {
 		t.Errorf("loop = %d with a log file that cannot be created, want %d", code, exitConfig)
 	}
 }
+
+// A log file that cannot be opened on a reload keeps the current logger: the new App starts
+// all the same, and the loop does not end.
+func TestLoopKeepsTheLoggerWhenItFailsOnReload(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can create the file anyway")
+	}
+	dir, port := t.TempDir(), freePort(t)
+	config := writeLoopConfig(t, dir, port)
+	token(t, config, "add", "nodered")
+	l := startLoop(t, config, port)
+
+	// Validate only checks that the directory exists, so the reload passes the check and fails
+	// in xlog.Init.
+	logDir := filepath.Join(dir, "log")
+	if err := os.Mkdir(logDir, 0o500); err != nil {
+		t.Fatal(err)
+	}
+	content, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dir, "config.yaml", strings.Replace(string(content),
+		`logDestination: "null"`, "logDestination: "+filepath.Join(logDir, "demo_app.log"), 1))
+
+	l.signals <- syscall.SIGHUP
+	l.waitFor(t, "old App stopped", func() bool { return status(port, "/version", "") == 0 })
+	l.waitFor(t, "new App running", func() bool { return status(port, "/version", "") == http.StatusOK })
+
+	l.signals <- syscall.SIGTERM
+	if code := l.exitCode(t); code != 0 {
+		t.Errorf("loop = %d after SIGTERM, want 0", code)
+	}
+}
