@@ -26,7 +26,7 @@ What used to be here as well lives in modules of its own now:
 | `gpio`, `gpio/rpi`, `gpio/rpiemu`, `manchester/encoder`, `manchester/decoder`, `mqtt`, `keyvalue` | moved to modules of their own, with the same API |
 | `crypt`, `jwt_util` | removed, no replacement (see [Changes in v2](#changes-in-v2)) |
 
-Each package carries a doc comment with a runnable `# Example usage` block, so
+Each package carries a doc comment with an `# Example usage` block, so
 `go doc github.com/womat/golib/v2/<pkg>` is the fastest way in. **Read the
 package README before putting it to work** — each one ends with a *Not
 addressed* section naming what the package deliberately does not do.
@@ -72,16 +72,18 @@ built by `WithX(...)` functions — `web`'s CORS, IP filter and logging
 middleware and `xlog` follow that shape. New ones should too. Options are applied at
 construction; there are no setters afterwards.
 
-**No global logger.** `web.WithLogging` takes the logger as an argument and
-hands it down the request context; nothing reaches for `slog.Default()` on its
-own.
+**No global logger while serving.** `web.WithLogging` takes the logger as an
+argument and hands it down the request context; nothing reaches for
+`slog.Default()` on its own while it handles a request. The exception is
+`WithIPFilter` while it is built: it reports unusable list entries to
+`slog.Default()` unless `WithIPFilterLogger` names a logger.
 
 **Every resource-owning type has a `Close`.** `xlog.LoggerWrapper` must be
 closed by the caller, and `defer` right after construction is the intended
 style.
 
-**Sentinel errors are exported package vars** (`ErrUnauthorized`,
-`ErrTokenExists`, …), compared with `errors.Is`. In `web` they carry no package
+**Sentinel errors are exported package vars** (`ErrTokenExists`,
+`ErrTokenFileWritable`, …), compared with `errors.Is`. In `web` they carry no package
 prefix, because those texts reach a client.
 
 **No package changes its own module state.** The library has no `init`
@@ -149,7 +151,7 @@ request, on Linux, the platform the services run on.
 |---|---|
 | `format` | `gofmt` over the whole tree, `demo_app` included |
 | `checks` | `scripts/check.sh --check`: pending `go fix` work, `golangci-lint`, `govulncheck` |
-| `library` | `go vet` and `go test -race -cover` |
+| `library` | `go vet` and `go test -race -cover`, then the `*AsRoot` tests under `sudo` |
 | `cross` | the Raspberry Pi targets, Linux amd64 and 386, Windows, macOS |
 | `demo_app` | certificate, vet, race tests, and the `swagger`-tagged build |
 | `demo_app_cross` | one target per `build_*` recipe in its `Makefile` |
@@ -174,7 +176,8 @@ To move a service from v1 to v2:
    `github.com/womat/golib/v2/<pkg>` and run `go get github.com/womat/golib/v2`.
 2. Replace the packages that moved out (`gpio`, `manchester`, `mqtt`,
    `keyvalue`) with the modules they moved to — the import paths change, the
-   APIs do not.
+   APIs do not. This README deliberately does not name those modules: lists of
+   other repositories kept here went stale before (decided 23.10.2026).
 3. `web.Config` has only `Tokens` left: delete `ApiKey`, `JwtSecret`, `JwtID`
    and `AppName`. Authentication is the token file — create the tokens with
    the service's `token add` subcommand (`web.TokenCommand`) and point the
@@ -219,6 +222,20 @@ Changed behaviour a service may notice:
   (`fe80::1%eth0`) used to get it rejected.
 - The access log reports the final status, not a 1xx sent before it, and body
   logging keeps the request body when reading it fails.
+
+### v2.1.1
+
+Changed behaviour a service may notice:
+
+- `web.CheckTokenFile` checks every directory above the token file as well,
+  up to the root. A layout that passed under v2.1.0 can now be reported — a
+  directory above `etc` that belongs to the service user, or a service started
+  from a checkout in a home directory; the message names the directory.
+- `WithLogging` writes an access-log entry for a handler that panics, with
+  status 500 at `Error`. The panic itself reaches `net/http` as before; the new
+  line is not a new failure.
+- `RemoveTokenFromFile` reports a name no token can have with
+  `ErrInvalidTokenName`, not `ErrTokenNotFound`, and `token remove` says so.
 
 ## Tagging a new version
 

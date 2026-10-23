@@ -68,17 +68,19 @@ helpers and `WriteError`/`ApiError` for uniform JSON error bodies. Applications 
 `http.ServeMux` and wrap it; see `demo/demo_app/app/routes.go` for the canonical wrapping order
 (`WithCORS`, then `WithIPFilter`, then `WithLogging` — the last wrapper is the outermost, so
 logging sees rejected requests too). `WithAuth` records the token's name for `WithLogging`, which
-writes it as `user=` into the access log and promotes the first request of each caller and
-client to Info. The CORS default is `Access-Control-Allow-Origin: *`, kept deliberately so
-upgrades change no running service.
+writes it as `user=` into the access log and, when `WithSuccessLevel` puts successful requests
+below Info, promotes the first request of each caller and client to Info. The CORS default is
+`Access-Control-Allow-Origin: *`, kept deliberately so upgrades change no running service.
 
 **`xlog`** wraps `slog` with destination (`stdout`/`stderr`/`null`/file) and level selection,
 returning a `LoggerWrapper` (embeds `*slog.Logger`) whose `Close()` releases the file handle.
 
 **Option pattern.** `web`'s CORS, IP-filter and logging middleware and `xlog` use variadic
 functional options (`Option func(*T)`, `WithX(...)`). New configurable constructors follow the
-same shape. No package reaches for `slog.Default()` on its own: `web.WithLogging` takes the
-logger positionally and hands it down the request context.
+same shape. No package reaches for `slog.Default()` on its own while serving a request:
+`web.WithLogging` takes the logger positionally and hands it down the request context. The
+exception is `WithIPFilter` while it is built, which reports unusable list entries to
+`slog.Default()` unless `WithIPFilterLogger` is given.
 
 **`demo/demo_app` is the application template**, not just a sample. It shows the intended
 service skeleton: YAML config with defaults and `${NAME}` env expansion (`app/config.go`), a
@@ -111,14 +113,14 @@ structure, and keep it in step with the services when one of them changes it.
 
 ## Conventions
 
-- Every package has a package-level doc comment with a runnable `# Example usage` section
+- Every package has a package-level doc comment with an `# Example usage` section
   (a godoc heading, not a plain line), and is covered by a `README.md`. Both are primary
   documentation: keep them updated when an API changes. The doc comment lives in the
   package's main file (`<pkg>.go` — `web/web.go` exists for nothing else), never in a
-  separate `doc.go`. Every README ends with a *Not addressed* section listing what the package
-  deliberately does not do; when you decide against fixing something, that is where the
+  separate `doc.go`. Every package README ends with a *Not addressed* section listing what
+  the package deliberately does not do; when you decide against fixing something, that is where the
   decision goes.
-- Sentinel errors are exported package vars (`ErrUnauthorized`, `ErrTokenExists`, …),
+- Sentinel errors are exported package vars (`ErrTokenExists`, `ErrTokenFileWritable`, …),
   compared with `errors.Is`. `web`'s carry no package prefix, because those texts can reach a
   client. Don't change an existing message — the services that use this library depend on
   it.
