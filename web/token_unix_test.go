@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -18,9 +19,14 @@ func TestCheckTokenFileRefusesAFileTheServiceOwns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Read only, but the owner can chmod it back.
-	if err := CheckTokenFile(path); !errors.Is(err, ErrTokenFileWritable) {
+	// Read only, but the owner can chmod it back. The directory is the test
+	// user's too, so only the message tells that the file itself was checked.
+	err := CheckTokenFile(path)
+	if !errors.Is(err, ErrTokenFileWritable) {
 		t.Errorf("err = %v, want ErrTokenFileWritable", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "the file belongs") {
+		t.Errorf("err = %v, want it to name the file", err)
 	}
 }
 
@@ -49,6 +55,8 @@ func TestCheckTokenFileRefusesAWritableDirectory(t *testing.T) {
 		t.Skip("root can write every file; the check does not apply")
 	}
 	// The file is root's, but whoever can write the directory can replace it.
+	// The directory above is the test user's too, so only the message tells
+	// that the directory itself was checked.
 	dir := t.TempDir()
 	path := filepath.Join(dir, "hosts")
 	if err := os.Symlink("/etc/hosts", path); err != nil {
@@ -58,6 +66,9 @@ func TestCheckTokenFileRefusesAWritableDirectory(t *testing.T) {
 	err := CheckTokenFile(path)
 	if !errors.Is(err, ErrTokenFileWritable) {
 		t.Errorf("err = %v, want ErrTokenFileWritable", err)
+	}
+	if err == nil || !strings.Contains(err.Error(), "its directory") {
+		t.Errorf("err = %v, want it to name its directory", err)
 	}
 }
 
