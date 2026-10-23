@@ -46,13 +46,12 @@
 //	}
 //
 //	func handleHealth() http.Handler {
+//	    type healthResponse struct {
+//	        OK bool `json:"ok"`
+//	    }
+//
 //	    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-//	        req, err := web.Decode[healthRequest](w, r)
-//	        if err != nil {
-//	            web.WriteError(w, r, http.StatusBadRequest, err)
-//	            return
-//	        }
-//	        web.Encode(w, http.StatusOK, healthResponse{OK: true, Probe: req.Probe})
+//	        web.Encode(w, http.StatusOK, healthResponse{OK: true})
 //	    })
 //	}
 package web
