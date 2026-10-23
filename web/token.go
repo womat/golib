@@ -298,7 +298,9 @@ func copyOwner(f *os.File, info fs.FileInfo) error {
 //
 // It checks nothing when the process runs as root, which can change every
 // file anyway, and nothing on platforms without Unix permissions. A file that
-// cannot be stat'ed is reported with that error.
+// cannot be stat'ed is reported with that error. For a token file that is a
+// symlink it checks the directories of the link, not of its target; see the
+// README.
 func CheckTokenFile(path string) error {
 	for _, target := range []struct{ path, what string }{
 		{path, "the file"},

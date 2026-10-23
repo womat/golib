@@ -170,7 +170,9 @@ web.WithCORS(mux, web.WithAllowedOrigins("https://dashboard.example"))
 
 With a list, the request's `Origin` is echoed back only when it is on it, and
 `Vary: Origin` is set so that a cache in front cannot serve one origin's
-response to another.
+response to another. An empty list — `WithAllowedOrigins()` with nothing, or
+an empty list from the config passed through — is no restriction: it means
+`*`, as without the option.
 
 ## IP filter
 
@@ -279,6 +281,10 @@ Known and deliberately left alone:
 - **A token file that is a symlink becomes a regular file** on `add` or
   `remove`: the rename replaces the link, and its old target is left as it
   was. Point the config at the real file instead.
+- **`CheckTokenFile` checks the path it is given, not where a symlink leads.**
+  For a token file that is a link it checks the link's directory and those
+  above it, not the target's: a link from a root-owned `etc` into a directory
+  the service owns passes. Same advice: point the config at the real file.
 - **`HashToken` is plain SHA-256, unsalted.** Right for the random 32-byte
   tokens `NewToken` makes, which cannot be enumerated; wrong for anything a
   person chose. Do not use it for passwords.
@@ -286,7 +292,16 @@ Known and deliberately left alone:
   request instead of reporting that the middleware was never configured.
 - **`Decode` does not reject unknown fields.** Extra JSON keys are ignored
   rather than refused.
+- **`Decode` does not wrap `*http.MaxBytesError`.** A body over the limit comes
+  back as `decode json: body larger than … bytes`, which `errors.As` cannot
+  tell from a broken body, so a caller cannot answer 413 instead of 400.
+  Wrapping it changes the text a client sees; no service uses `Decode`, so it
+  waits for v3.
 - **`X-Forwarded-For` is ignored**, see above.
+- **`WithAuth` must run in the goroutine of `WithLogging`.** It records the
+  caller for the access log without a lock, which is safe as long as nothing
+  between the two — `http.TimeoutHandler`, for one — runs the handler in a
+  goroutine of its own and lets it outlive `ServeHTTP`. No service does.
 - **No `Enabled` check before the work.** `WithLogging` builds its attributes
   and, with `WithBodyLogging`, buffers the bodies even when the handler would
   discard the entry. Since the entry is written at `Info` and above, that
@@ -307,6 +322,10 @@ Known and deliberately left alone:
   `ContextWithLogger`, `LoggerFrom`; and, used only by `TokenCommand`,
   `NewToken`, `ValidTokenName`, `RemoveTokenFromFile`, `ErrTokenExists`,
   `ErrTokenNotFound`, `ErrInvalidTokenName`, `ErrTokenFileWritable`.
+  A second look on 23.10.2026 added `WithIPFilterLogger` with its type
+  `IPFilterOption`; `ErrUnauthorized` and `ErrForbidden`, which only ever reach
+  a client as text — the texts stay, clients and tests compare them; and the
+  `reason` parameter of `WriteError`, which no caller passes.
   Removing or unexporting them breaks v2 and saves no code worth a new major
   version and a changed import path in every service; they are the candidates for a v3.
   `HashToken` and `AddTokenToFile` are not: the services' tests build their

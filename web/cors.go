@@ -29,6 +29,8 @@ type corsConfig struct {
 // not for one that relies on browser credentials. With a list, the request's
 // Origin header is echoed back only when it is on the list, and "Vary: Origin"
 // is set so that a cache in front cannot hand one origin's response to another.
+//
+// An empty list restricts nothing: it means "*", as without the option.
 func WithAllowedOrigins(origins ...string) CORSOption {
 	return func(c *corsConfig) {
 		c.origins = origins
