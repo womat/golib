@@ -53,7 +53,7 @@ ensure_dev_certs:
 			-keyout "$(DEV_KEY_FILE)" \
 			-out "$(DEV_CERT_FILE)" \
 			-days 365 \
-			-subj "/C=AT/ST=Vienna/L=Vienna/O=modbusgateway/OU=Development/CN=localhost"; \
+			-subj "/C=AT/ST=Vienna/L=Vienna/O=demo_app/OU=Development/CN=localhost"; \
 	fi
 
 
