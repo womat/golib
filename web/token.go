@@ -189,11 +189,16 @@ func AddTokenToFile(path, name string, hash [sha256.Size]byte) error {
 }
 
 // RemoveTokenFromFile removes the token with the given name from the token
-// file at path. It fails with ErrTokenNotFound if there is none.
+// file at path. It fails with ErrInvalidTokenName for a name no token can
+// have, and with ErrTokenNotFound if there is none.
 //
 // Comments and the order of the other lines are kept; the file is replaced
 // atomically and keeps its mode, owner and group.
 func RemoveTokenFromFile(path, name string) error {
+	if !ValidTokenName(name) {
+		return fmt.Errorf("%w: %q", ErrInvalidTokenName, name)
+	}
+
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err

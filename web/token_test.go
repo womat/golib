@@ -198,6 +198,24 @@ func TestAddTokenRefusesBrokenFileAndBadName(t *testing.T) {
 	}
 }
 
+func TestRemoveTokenRefusesBadName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "token-hashes")
+	start := "# alt\nnodered " + hashHex("one") + "\n"
+	if err := os.WriteFile(path, []byte(start), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	// "#" would match the comment line "# alt", which has two fields as well.
+	if err := RemoveTokenFromFile(path, "#"); !errors.Is(err, ErrInvalidTokenName) {
+		t.Errorf("err = %v, want ErrInvalidTokenName", err)
+	}
+
+	content, _ := os.ReadFile(path)
+	if string(content) != start {
+		t.Errorf("file =\n%s\nwant\n%s", content, start)
+	}
+}
+
 func TestWithAuthTokens(t *testing.T) {
 	cfg := Config{
 		Tokens: []Token{{Name: "nodered", Hash: HashToken("the-token")}},
