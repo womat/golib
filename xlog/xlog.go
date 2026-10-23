@@ -1,33 +1,41 @@
 // Package xlog provides a simple wrapper around slog.Logger with flexible
 // output destinations and log levels. It supports:
 //
-// - stdout, stderr, null (discard) logging
-// - file logging with automatic append/create
-// - log levels: debug, info (default), warning, error
-// - source info, on by default for debug and selectable via WithSource
-// - safe file cleanup via Close(), including under concurrent use
+//   - stdout, stderr, null (discard) logging
+//   - file logging with automatic append/create
+//   - log levels: debug, info (default), warning or warn, error
+//   - source info, on by default for debug and selectable via WithSource
+//   - safe file cleanup via Close(), including under concurrent use
 //
 // # Example usage
 //
-//  1. Logging to stdout with debug messages and source info:
-//     logger, err := xlog.Init("stdout", "debug")
-//     if err != nil { panic(err) }
-//     defer logger.Close()
-//     logger.Debug("Debug message with source info")
+// Logging to stdout with debug messages and source info:
 //
-//  2. Logging to a file with warning level:
-//     logger, err := xlog.Init("/tmp/myapp.log", "warning")
-//     if err != nil { panic(err) }
-//     defer logger.Close()
-//     logger.Warn("This is a warning")
-//     logger.Info("This info will be ignored due to log level")
+//	logger, err := xlog.Init("stdout", "debug")
+//	if err != nil {
+//	    panic(err)
+//	}
+//	defer logger.Close()
+//	logger.Debug("Debug message with source info")
 //
-//  3. Source info at a level other than debug:
-//     logger, err := xlog.Init("stdout", "info", xlog.WithSource(true))
+// Logging to a file with warning level:
 //
-//  4. Discarding all logs (useful in tests):
-//     logger, _ := xlog.Init("null", "debug")
-//     logger.Debug("This will not appear anywhere")
+//	logger, err := xlog.Init("/tmp/myapp.log", "warning")
+//	if err != nil {
+//	    panic(err)
+//	}
+//	defer logger.Close()
+//	logger.Warn("This is a warning")
+//	logger.Info("This info will be ignored due to log level")
+//
+// Source info at a level other than debug:
+//
+//	logger, err := xlog.Init("stdout", "info", xlog.WithSource(true))
+//
+// Discarding all logs (useful in tests):
+//
+//	logger, _ := xlog.Init("null", "debug")
+//	logger.Debug("This will not appear anywhere")
 //
 // After Close() the logger stays usable: what is written to it is discarded
 // instead of going to a closed file handle.
