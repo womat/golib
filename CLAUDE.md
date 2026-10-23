@@ -13,11 +13,10 @@ setup). No `main` in the root module, no dependencies outside the standard libra
 `go build ./...` at the root ignores it.
 
 **v2 since 16.10.2026.** v2 removed what v1 had deprecated: `crypt`, `jwt_util` (gone), and
-`keyvalue`, `gpio`, `manchester`, `mqtt`, which live on as `github.com/womat/keyvalue`, `…/gpio`,
-`…/manchester` and `…/mqtt` with their history. `web.Config` has only `Tokens`; API key,
+`keyvalue`, `gpio`, `manchester`, `mqtt`, which live on as modules of their own with their
+history. `web.Config` has only `Tokens`; API key,
 `X-Api-Key`, JWT and `AppName` are gone. README.md, *Changes in v2*, is the migration guide.
-v1 ends at tag `v1.5.5`; all five services import v2 since 16.10.2026. A v1
-fix would need a branch from that tag — there is none.
+v1 ends at tag `v1.5.5`. A v1 fix would need a branch from that tag — there is none.
 
 ## Commands
 
@@ -89,8 +88,8 @@ channels (`app/app.go`), signal-driven graceful shutdown and config reload on `S
 rereads the token file), and version/build metadata injected via `-ldflags`. Swagger is compiled
 in only under the `swagger` build tag (`app/swagger.go` vs `app/swagger_stub.go`).
 
-Its lifecycle follows s0meter (`cmd/main.go`, `app/app.go`, `app/webservices.go`), the most
-advanced of the five services; it was brought in line on 22.10.2026. `run` subscribes the signals
+Its lifecycle (`cmd/main.go`, `app/app.go`, `app/webservices.go`) is the pattern for the
+services. `run` subscribes the signals
 once for the process and hands them to `loop`, which `cmd/loop_test.go` drives with a channel of
 its own; every `App` reads from it. A `SIGHUP` is checked with `checkReload` before anything is
 torn down; a new config that fails to start falls back to `lastGood`; a web server that stops on
@@ -102,14 +101,8 @@ validate, a log destination that cannot be opened at the first start, and a star
 `app.ErrPermanent` (a certificate that cannot be loaded); the unit in its README keeps systemd
 from restarting after it. `VERSION` comes from the Git tag via `-ldflags`.
 
-s0meter took over on 22.10.2026, with golib v2.1.0, what the demo_app did better: `${NAME}`
-that is not set is an error, not an empty string, and comments are left out of the expansion;
-`Validate` checks `logDestination`, `listenHost` and both IP lists (`web.ValidateIPList`); prod
-requires `certFile` **and** `keyFile`, and `loadTLSCert` treats a missing key like a missing
-certificate; setup warns via `web.CheckTokenFile`; the `OPTIONS /` route is gone (`WithCORS`
-answers preflights). The other four services still need to drop their `OPTIONS /` route, after
-which `HandlePreflight` is unused. What is s0meter's own (meters, MQTT, data file, the web page)
-stays there.
+What is specific to one service (its devices, MQTT, data files, a web page) stays in that
+service.
 
 Exported API that no service uses (audit of 22.10.2026) stays in v2 and is collected as v3
 candidates under *Not addressed* in `web/README.md` and `xlog/README.md`. Search the services'
@@ -127,8 +120,8 @@ structure, and keep it in step with the services when one of them changes it.
   decision goes.
 - Sentinel errors are exported package vars (`ErrUnauthorized`, `ErrTokenExists`, …),
   compared with `errors.Is`. `web`'s carry no package prefix, because those texts can reach a
-  client. Don't change an existing message — `tadl`, `s0meter`, `smartmeter`, `modbusgateway`
-  and `relayhat` consume this library.
+  client. Don't change an existing message — the services that use this library depend on
+  it.
 - Every resource-owning type (`xlog.LoggerWrapper`) has an explicit `Close()` that callers must
   defer.
 - Commit subjects follow Conventional Commits, `type(scope): description` with an optional scope (`fix: default port 8443`, `feat(ui): …`), types `feat`, `fix`, `docu`, `chore`, `refactor`.
@@ -161,8 +154,7 @@ invisible to every existing job.
 
 Every job takes its Go version from the `go.mod` of the module it builds, and **both modules
 declare the same `go 1.27`**, deliberately supporting one version rather than a range. Keep them
-in step. All five consumers (`tadl`, `s0meter`, `smartmeter`, `modbusgateway`, `relayhat`) and
-the split-out modules (`gpio`, `manchester`, `mqtt`, `keyvalue`) declare `go 1.27` as well.
+in step.
 
 **Dependencies:** `.github/dependabot.yml`, weekly, one `gomod` entry per module plus the
 GitHub Actions themselves, with updates grouped (`golang.org/x/*`, the swagger generator,

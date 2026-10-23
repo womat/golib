@@ -23,10 +23,7 @@ What used to be here as well lives in modules of its own now:
 
 | Former package | Now |
 |---|---|
-| `gpio`, `gpio/rpi`, `gpio/rpiemu` | [github.com/womat/gpio](https://github.com/womat/gpio) |
-| `manchester/encoder`, `manchester/decoder` | [github.com/womat/manchester](https://github.com/womat/manchester) |
-| `mqtt` | [github.com/womat/mqtt](https://github.com/womat/mqtt) |
-| `keyvalue` | [github.com/womat/keyvalue](https://github.com/womat/keyvalue) |
+| `gpio`, `gpio/rpi`, `gpio/rpiemu`, `manchester/encoder`, `manchester/decoder`, `mqtt`, `keyvalue` | moved to modules of their own, with the same API |
 | `crypt`, `jwt_util` | removed, no replacement (see [Changes in v2](#changes-in-v2)) |
 
 Each package carries a doc comment with a runnable `# Example usage` block, so
@@ -110,9 +107,7 @@ cross-compiles for the Raspberry Pi and can scp the binary to a target host:
     make build_arm64   # cross-compile for a 64-bit Pi
     make deploy        # build and copy to $(PI_USER)@$(PI_HOST)
 
-The demos for GPIO and Manchester coding moved with their packages to
-[womat/gpio](https://github.com/womat/gpio) and
-[womat/manchester](https://github.com/womat/manchester).
+The demos for GPIO and Manchester coding moved with their packages.
 
 ## Development
 
@@ -177,11 +172,9 @@ To move a service from v1 to v2:
 
 1. Change the imports from `github.com/womat/golib/<pkg>` to
    `github.com/womat/golib/v2/<pkg>` and run `go get github.com/womat/golib/v2`.
-2. Replace the packages that moved out with their modules — the import paths
-   change, the APIs do not: `golib/gpio…` → `github.com/womat/gpio…`,
-   `golib/manchester/…` → `github.com/womat/manchester/…`, `golib/mqtt` →
-   `github.com/womat/mqtt` (v1.0.0 or later), `golib/keyvalue` →
-   `github.com/womat/keyvalue`.
+2. Replace the packages that moved out (`gpio`, `manchester`, `mqtt`,
+   `keyvalue`) with the modules they moved to — the import paths change, the
+   APIs do not.
 3. `web.Config` has only `Tokens` left: delete `ApiKey`, `JwtSecret`, `JwtID`
    and `AppName`. Authentication is the token file — create the tokens with
    the service's `token add` subcommand (`web.TokenCommand`) and point the
@@ -201,8 +194,8 @@ version of its own.
 
 **`web.ContextKey` was removed** although that breaks the API inside v2: any
 code in the process could build `web.ContextKey("user")` and make `UserFrom`
-report a caller `WithAuth` never authorized. None of the five services used the
-type. Read the caller with `web.UserFrom`.
+report a caller `WithAuth` never authorized. None of the services that use this
+library used the type. Read the caller with `web.UserFrom`.
 
 New, and worth taking up when a service moves to v2.1.0:
 

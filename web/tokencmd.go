@@ -32,8 +32,8 @@ import (
 //
 //	if len(os.Args) > 1 && os.Args[1] == "token" {
 //	    os.Exit(web.TokenCommand{
-//	        App:           "tadl",
-//	        DefaultConfig: "/opt/tadl/etc/config.yaml",
+//	        App:           "demo_app",
+//	        DefaultConfig: "/opt/demo_app/etc/config.yaml",
 //	        TokenFile:     app.TokenFile, // reads webserver.tokenFile
 //	    }.Run(os.Args[2:]))
 //	}
@@ -47,7 +47,7 @@ type TokenCommand struct {
 	TokenFile func(configPath string) (string, error)
 	// Apply tells the user how a change takes effect; "Restart <App> to
 	// apply." if empty. A service that rereads its token file on SIGHUP says
-	// so here, e.g. "Apply with: systemctl reload tadl".
+	// so here, e.g. "Apply with: systemctl reload demo_app".
 	Apply string
 	// Stdout receives the token and the list of names; os.Stdout if nil.
 	Stdout io.Writer
