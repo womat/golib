@@ -121,6 +121,8 @@ become a rule that silently never matches.
 
 Default location: `/opt/demo_app/etc/config.yaml`. Environment variables are
 expanded inside the file as described [above](#environment-variables).
+`config/config.yaml` sets `env: prod`, because it is the file an installation
+copies; for development, start with a copy that says `env: dev`.
 
 ```yaml
 # =============================================================================

@@ -363,3 +363,15 @@ func TestShippedConfigHasOnlyKnownKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// The shipped config file is the one an installation copies to /opt/demo_app/etc. In dev, a
+// forgotten cert.pem would silently serve the embedded certificate, whose key is in every binary.
+func TestShippedConfigIsProd(t *testing.T) {
+	cfg, err := readConfig("../config/config.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IsDevEnv() {
+		t.Errorf("env = %q, want %q", cfg.Env, ProdEnv)
+	}
+}
