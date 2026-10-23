@@ -174,18 +174,20 @@ webserver:
 ## TLS Certificate
 
 **The embedded development certificate is only used in `env: dev`.** The binary
-carries a self-signed pair (`app/certs/`) so that a fresh checkout starts over
-HTTPS without preparation. That pair is public — it lives in this repository,
-its private key included — and it is issued for `localhost` and nothing else.
-Treat it as scaffolding, never as protection.
+carries a self-signed pair (`app/certs/`) so that a development build starts over
+HTTPS without a certificate of its own. The pair is not checked in: `app/certs/`
+is gitignored, and `make ensure_dev_certs` generates it before the build. Its
+private key is still embedded in every binary, so whoever has the binary has the
+key — and it is issued for `localhost` and nothing else. Treat it as
+scaffolding, never as protection.
 
 With `env: prod` a missing `certFile` or `keyFile` is a startup error, not a
 fallback: the service refuses to come up rather than serve a certificate whose
 private key everybody has. `Validate()` additionally insists that both paths are
 configured in `prod`, so the mistake is caught before the listener opens.
 
-`make ensure_dev_certs` generates a fresh pair into `app/certs/` if you would
-rather not ship the checked-in one.
+`make ensure_dev_certs` generates the pair into `app/certs/` only if it is
+missing; delete the two files to get a fresh one.
 
 Generate a self-signed certificate for development:
 
