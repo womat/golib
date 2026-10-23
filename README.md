@@ -136,7 +136,7 @@ over both modules, generating `demo_app`'s certificate first:
     scripts/check.sh               # apply fixes, check everything
     scripts/check.sh --check       # report pending fixes, change nothing
     scripts/check.sh --skip=vuln   # leave out the step that needs a network
-    scripts/check.sh --goos=linux  # check for the platform that ships
+    scripts/check.sh --goos=darwin # check for another platform (default: linux)
     scripts/check.sh demo/demo_app
 
 `golangci-lint` and `govulncheck` are not vendored; the script names the

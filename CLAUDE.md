@@ -33,8 +33,8 @@ go test ./web/ -run TestWithAuth -v     # single package / single test
 Everything builds on macOS, Linux and Windows. `scripts/check.sh` runs `go fix`, `go vet`,
 `golangci-lint` and `govulncheck` over both modules and generates `demo_app`'s certificate first;
 `--check` reports pending `go fix` work without writing, `--skip=vuln` drops the step that needs a
-network, `--goos=linux` checks for the platform that ships (default: the host). Prefer it over
-running the tools by hand — they do not see `demo/demo_app` from the root.
+network, `--goos=darwin` checks for another platform (default: `linux`, which ships and which CI
+checks). Prefer it over running the tools by hand — they do not see `demo/demo_app` from the root.
 
 `demo/demo_app`: `cd` there first, then use its `Makefile`. It cross-compiles for the Raspberry
 Pi and `make deploy` scp's the binary to `$(PI_USER)@$(PI_HOST)`. `make help` lists the

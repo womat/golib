@@ -8,8 +8,10 @@
 # Each module is visited on its own, and demo_app's development certificate,
 # which it embeds, is generated first.
 #
-# GOOS defaults to the host's. The services built on this library run on Linux
-# (a Raspberry Pi); --goos=linux checks what ships, and CI runs on Linux anyway.
+# GOOS defaults to linux, not the host's: only Linux ships (a Raspberry Pi) and
+# CI checks on Linux. With the host's default a Mac linted for darwin, and a
+# finding only Linux shows surfaced after the push to main. No code is
+# macOS-only; the cross job in CI covers the Mac build.
 #
 # Usage:
 #   scripts/check.sh                     apply fixes, check everything
@@ -32,7 +34,7 @@ ALL_MODULES=(
 
 ALL_STEPS=(fix vet lint vuln)
 
-goos=$(go env GOOS)
+goos=linux
 check_only=0
 verbose=0
 skipped_steps=""
