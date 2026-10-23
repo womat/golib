@@ -292,9 +292,10 @@ func copyOwner(f *os.File, info fs.FileInfo) error {
 // It could if it owns the file or its directory, which lets it chmod them, or
 // if it may write either of them; whoever can write the directory can replace
 // the file. The same holds for every directory above, up to the root, because
-// whoever can change one of them can swap the directory below. A service calls it at start with the token file it reads, and
-// logs a failure as a warning: the service still works, but its layout lets
-// a compromised service grant itself access.
+// whoever can change one of them can swap the directory below. A service calls
+// it at start with the token file it reads, and logs a failure as a warning:
+// the service still works, but its layout lets a compromised service grant
+// itself access.
 //
 // It checks nothing when the process runs as root, which can change every
 // file anyway, and nothing on platforms without Unix permissions. A file that

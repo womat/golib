@@ -6,18 +6,20 @@
 // usually read from a token file with ReadTokenFile and managed with the
 // TokenCommand subcommand; the token's name then appears in the access log.
 // There is no other way in: no API key, no X-Api-Key header, no JWT. CORS, IP
-// filtering and
-// request logging are independent wrappers that can be combined in any order -
-// see the README for the ordering that is actually useful. Encode and Decode
-// handle JSON bodies, WriteError produces a uniform JSON error body and logs
-// the details that are not sent to the client.
+// filtering and request logging are independent wrappers, but their order
+// matters - see the README for the ordering that is actually useful. Encode
+// and Decode handle JSON bodies, WriteError produces a uniform JSON error body
+// and logs the details that are not sent to the client.
 //
-// No part of this package reaches for slog.Default() on its own: WithLogging
-// takes the logger and puts it into the request context, where WriteError and
-// WithIPFilter pick it up through LoggerFrom. Only when nothing seeded the
-// context does that fall back to slog.Default(). The access log follows the
-// response status - error from 500, warn from 400, info below - so it is
-// visible at the level a service runs at.
+// While serving a request, no part of this package reaches for slog.Default()
+// on its own: WithLogging takes the logger and puts it into the request
+// context, where WriteError and WithIPFilter pick it up through LoggerFrom.
+// Only when nothing seeded the context does that fall back to slog.Default().
+// The exception is WithIPFilter while it is built: it reports unusable list
+// entries to slog.Default() unless WithIPFilterLogger names a logger.
+//
+// The access log follows the response status - error from 500, warn from 400,
+// info below - so it is visible at the level a service runs at.
 //
 // # Example usage
 //
@@ -42,7 +44,7 @@
 //	        web.WithIPFilterLogger(logger))
 //	    handler = web.WithLogging(handler, logger)
 //
-//	    log.Fatal(http.ListenAndServe(":8443", handler))
+//	    log.Fatal(http.ListenAndServeTLS(":8443", "cert.pem", "key.pem", handler))
 //	}
 //
 //	func handleHealth() http.Handler {

@@ -27,6 +27,9 @@ type ipFilterConfig struct {
 // there is a request whose context could carry a logger. The rejections at
 // request time need no option: they go to the logger WithLogging put into the
 // context.
+//
+// logger must not be nil: unlike WithLogging, there is no fallback, and the
+// first unusable list entry panics while the middleware is built.
 func WithIPFilterLogger(logger *slog.Logger) IPFilterOption {
 	return func(c *ipFilterConfig) {
 		c.logger = logger

@@ -21,7 +21,7 @@ both sections before putting this on a public interface.
 | `func ReadTokenFile(path string) ([]Token, error)` | read a token file; a malformed line, a duplicate name or a duplicate hash is an error |
 | `func CheckTokenFile(path string) error` | `ErrTokenFileWritable` if the running process could change the token file, its directory or one above; log it as a warning |
 | `func AddTokenToFile(path, name string, hash [32]byte) error` / `func RemoveTokenFromFile(path, name string) error` | change a token file in place, atomically, keeping comments, mode, owner and group; `ErrInvalidTokenName`, `ErrTokenExists`, `ErrTokenNotFound`; add refuses a hash already in the file |
-| `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -` |
+| `func NewToken() (string, error)` / `func HashToken(token string) [32]byte` / `func ValidTokenName(name string) bool` | 32 random bytes as hex; its hash; names are 1–64 of `A-Z a-z 0-9 . _ -`, starting with a letter or digit |
 | `type TokenCommand struct{ … }` / `func (TokenCommand) Run(args []string) int` | the `token add/remove/list` subcommand for a service's `main` |
 | `func WithCORS(next http.Handler, opts ...CORSOption) http.Handler` | adds the CORS headers and answers preflights itself (204) |
 | `func WithAllowedOrigins(origins ...string) CORSOption` | restrict to a list, echo only on a match, set `Vary: Origin` |
@@ -99,6 +99,7 @@ service's `main` (see its doc comment):
 <app> token add <name>            write the hash, then print the token once
 <app> token add <name> -dry-run   print token and line, write nothing
 <app> token remove <name>         delete the line
+<app> token remove <name> -dry-run check the name, write nothing
 <app> token list                  print the names, never a hash
 ```
 
@@ -203,8 +204,8 @@ size, duration. **The level follows the response status** — `Error` from 500,
 `Warn` from 400, `Info` below — so the access log is visible at the level a
 service actually runs at; `WithLogLevel` puts every entry at one level. The
 status is the one the response went out with, not a 1xx sent ahead of it.
-A handler that panics gets its entry as well, as a 500 at `Error`, whatever it
-wrote before; the panic itself is not recovered and reaches `net/http` with its
+A handler that panics gets its entry as well, as a 500, whatever it wrote
+before; the panic itself is not recovered and reaches `net/http` with its
 own stack trace. A service that is polled every few seconds can put
 only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
 rejected ones visible as warnings; the first successful request of each
@@ -256,7 +257,7 @@ entry goes to the logger in the request context, see
 go test -race ./web/
 ```
 
-Coverage is 93.9 %, with `net/http/httptest` and no network. The error
+The tests use `net/http/httptest` and no network. The error
 branches of the atomic file replacement (a failing write, chmod or sync) are
 not reached.
 
@@ -323,7 +324,7 @@ Known and deliberately left alone:
   `NewToken`, `ValidTokenName`, `RemoveTokenFromFile`, `ErrTokenExists`,
   `ErrTokenNotFound`, `ErrInvalidTokenName`, `ErrTokenFileWritable`.
   A second look on 23.10.2026 added `WithIPFilterLogger` with its type
-  `IPFilterOption`; `ErrUnauthorized` and `ErrForbidden`, which only ever reach
+  `IPFilterOption`, which only `demo_app` calls, with the default; `ErrUnauthorized` and `ErrForbidden`, which only ever reach
   a client as text — the texts stay, clients and tests compare them; and the
   `reason` parameter of `WriteError`, which no caller passes.
   Removing or unexporting them breaks v2 and saves no code worth a new major

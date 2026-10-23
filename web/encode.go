@@ -42,7 +42,8 @@ func Encode[T any](w http.ResponseWriter, status int, v T) {
 // body of `{"a":1} and then some` does not pass as valid.
 //
 // The ResponseWriter is only needed for that limit: http.MaxBytesReader uses it
-// to let the server answer with 413 instead of dropping the connection.
+// to have the server close the connection after the response. The status of
+// that response is the caller's choice; nothing answers 413 on its own.
 func Decode[T any](w http.ResponseWriter, r *http.Request) (T, error) {
 	var v T
 
