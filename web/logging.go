@@ -153,6 +153,9 @@ func (lr *logResponse) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 // below - so the access log is visible at the level a service normally runs at.
 // WithLogLevel pins it to one level instead.
 //
+// A handler that panics is logged too, with status 500, whatever it wrote
+// before; the panic is not recovered and goes on to net/http.
+//
 // The logger is put into the request context, which is where WriteError and
 // WithIPFilter look for it. Wrap with this middleware outermost and those
 // entries go to the same logger; see the README for the ordering.
@@ -198,47 +201,58 @@ func WithLogging(h http.Handler, logger *slog.Logger, opts ...LogOption) http.Ha
 			// Content-Type.
 			lr := &logResponse{ResponseWriter: w, status: http.StatusOK, bodyLimit: cfg.bodyLimit}
 
+			// The entry is written in a defer, so a handler that panics gets one too,
+			// as a 500. The panic is not recovered here: it goes on to net/http with
+			// its own stack trace.
+			returned := false
+			defer func() {
+				if !returned {
+					lr.status = http.StatusInternalServerError
+				}
+
+				attrs := []any{
+					slog.Group("request",
+						slog.String("method", r.Method),
+						slog.String("path", r.URL.Path),
+						slog.String("client", clientHost(r)),
+					),
+					slog.Group("response",
+						slog.Int("status", lr.status),
+						slog.Int("size", lr.size),
+						slog.Duration("duration", time.Since(start)),
+					),
+				}
+
+				level := cfg.levelFor(lr.status)
+				if caller.name != "" {
+					attrs = append(attrs, slog.String("user", caller.name))
+
+					// With successful requests below Info, the first one of each caller
+					// from each client still goes to Info, so the normal log shows who
+					// uses the service without a line per poll.
+					if level < slog.LevelInfo && cfg.level == nil && lr.status < http.StatusBadRequest &&
+						seen.add(caller.name+" "+clientHost(r)) {
+						level = slog.LevelInfo
+						attrs = append(attrs, slog.Bool("firstAccess", true))
+					}
+				}
+
+				if cfg.bodyLimit > 0 {
+					responseBody := lr.body.String()
+					if !isTextual(lr.Header().Get("Content-Type")) {
+						responseBody = ""
+					}
+					attrs = append(attrs, slog.Group("body",
+						slog.String("request", string(reqBody)),
+						slog.String("response", responseBody),
+					))
+				}
+
+				logger.Log(r.Context(), level, "request", attrs...)
+			}()
+
 			h.ServeHTTP(lr, r)
-
-			attrs := []any{
-				slog.Group("request",
-					slog.String("method", r.Method),
-					slog.String("path", r.URL.Path),
-					slog.String("client", clientHost(r)),
-				),
-				slog.Group("response",
-					slog.Int("status", lr.status),
-					slog.Int("size", lr.size),
-					slog.Duration("duration", time.Since(start)),
-				),
-			}
-
-			level := cfg.levelFor(lr.status)
-			if caller.name != "" {
-				attrs = append(attrs, slog.String("user", caller.name))
-
-				// With successful requests below Info, the first one of each caller
-				// from each client still goes to Info, so the normal log shows who
-				// uses the service without a line per poll.
-				if level < slog.LevelInfo && cfg.level == nil && lr.status < http.StatusBadRequest &&
-					seen.add(caller.name+" "+clientHost(r)) {
-					level = slog.LevelInfo
-					attrs = append(attrs, slog.Bool("firstAccess", true))
-				}
-			}
-
-			if cfg.bodyLimit > 0 {
-				responseBody := lr.body.String()
-				if !isTextual(lr.Header().Get("Content-Type")) {
-					responseBody = ""
-				}
-				attrs = append(attrs, slog.Group("body",
-					slog.String("request", string(reqBody)),
-					slog.String("response", responseBody),
-				))
-			}
-
-			logger.Log(r.Context(), level, "request", attrs...)
+			returned = true
 		},
 	)
 }

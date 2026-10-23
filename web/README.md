@@ -201,7 +201,9 @@ size, duration. **The level follows the response status** — `Error` from 500,
 `Warn` from 400, `Info` below — so the access log is visible at the level a
 service actually runs at; `WithLogLevel` puts every entry at one level. The
 status is the one the response went out with, not a 1xx sent ahead of it.
-A service that is polled every few seconds can put
+A handler that panics gets its entry as well, as a 500 at `Error`, whatever it
+wrote before; the panic itself is not recovered and reaches `net/http` with its
+own stack trace. A service that is polled every few seconds can put
 only the successful requests at `Debug` with `WithSuccessLevel`, and keep the
 rejected ones visible as warnings; the first successful request of each
 caller from each client is still logged at `Info` (`firstAccess=true`), so the

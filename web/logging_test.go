@@ -330,6 +330,32 @@ func TestWithLoggingNilLoggerDoesNotPanic(t *testing.T) {
 	}
 }
 
+// TestWithLoggingLogsAPanic: a handler that panics still gets its entry, as a
+// 500 at error level, and the panic goes on to net/http, which recovers it.
+func TestWithLoggingLogsAPanic(t *testing.T) {
+	logger, buf := testLogger()
+
+	inner := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		panic("boom")
+	})
+
+	func() {
+		defer func() {
+			if p := recover(); p != "boom" {
+				t.Errorf("recovered %v, want the handler's panic", p)
+			}
+		}()
+		WithLogging(inner, logger).
+			ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/panics", nil))
+	}()
+
+	for _, want := range []string{"level=ERROR", "request.path=/panics", "response.status=500"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Errorf("want %s in the log:\n%s", want, buf)
+		}
+	}
+}
+
 // TestWithLoggingSeedsTheContext is what makes WriteError and WithIPFilter
 // report to the same logger.
 func TestWithLoggingSeedsTheContext(t *testing.T) {
