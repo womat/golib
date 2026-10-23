@@ -13,10 +13,11 @@ import (
 //   - GET /swagger/ - only in builds made with -tags swagger
 //
 // It wraps the mux in web.WithCORS, web.WithIPFilter and web.WithLogging, in
-// that order, handing all three the same logger. WithCORS answers the CORS
-// preflight before the mux, so it never meets the authentication middleware;
-// without an "OPTIONS /" route the mux answers 404 and 405 correctly. It must
-// be called during startup, before the HTTP server starts.
+// that order; the IP filter and the logging write to the same logger. WithCORS
+// answers the CORS preflight before the mux, so it never meets the
+// authentication middleware; without an "OPTIONS /" route the mux answers 404
+// and 405 correctly. It must be called during startup, before the HTTP server
+// starts.
 func (app *App) setupRoutes() {
 	webCfg := app.webConfig()
 
