@@ -250,6 +250,7 @@ func TestWithLoggingLevelFollowsStatus(t *testing.T) {
 		want   string
 	}{
 		{http.StatusOK, "level=INFO"},
+		{http.StatusBadRequest, "level=WARN"},
 		{http.StatusNotFound, "level=WARN"},
 		{http.StatusInternalServerError, "level=ERROR"},
 	} {
@@ -293,6 +294,7 @@ func TestWithSuccessLevel(t *testing.T) {
 	for status, want := range map[int]string{
 		http.StatusOK:                  "level=DEBUG",
 		http.StatusNotModified:         "level=DEBUG",
+		http.StatusBadRequest:          "level=WARN",
 		http.StatusUnauthorized:        "level=WARN",
 		http.StatusInternalServerError: "level=ERROR",
 	} {
