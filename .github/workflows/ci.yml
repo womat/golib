@@ -11,6 +11,11 @@
 # Actions are pinned to a commit SHA, with the release in a comment: a tag like
 # @v7 can be moved to other code, a SHA cannot. dependabot (.github/dependabot.yml)
 # proposes updates for them.
+#
+# setup-go takes the version from go.mod but the newest patch of it (check-latest),
+# and the weekly run repeats govulncheck without a change here: an advisory against
+# the Go toolchain or a dependency appears between commits, and dependabot does not
+# report the toolchain.
 
 name: CI
 
@@ -18,6 +23,9 @@ on:
   push:
     branches: [main]
   pull_request:
+    branches: [main]
+  schedule:
+    - cron: "17 5 * * 1"
   workflow_dispatch:
 
 permissions:
@@ -37,6 +45,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          check-latest: true
       # Covers the demo modules too - gofmt does not care about module
       # boundaries, and running it once is cheaper than once per module.
       - name: gofmt
@@ -56,21 +65,32 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          check-latest: true
 
       # Pinned rather than @latest: a new release of either tool would
-      # otherwise turn this job red without a change in this repository. Raise
-      # them deliberately - dependabot does not see a go install line.
+      # otherwise turn this job red without a change in this repository.
+      # dependabot does not see pins in a run step; bump these by hand, and in
+      # scripts/check.sh as well.
       - name: install tools
         run: |
-          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
-          go install golang.org/x/vuln/cmd/govulncheck@v1.8.0
+          go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+          go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
 
       # The same script a developer runs, so the two cannot drift. --check makes
-      # go fix report a pending diff and exit non-zero instead of writing it.
+      # go fix and go mod tidy report a pending diff and exit non-zero instead of
+      # writing it. It also runs go vet for every module, so no other job vets
+      # the library.
       # Note this will go red on its own when a future Go release adds a fixer:
       # that is the point, and "scripts/check.sh" applies what it wants.
       - name: scripts/check.sh --check
         run: scripts/check.sh --check
+      # check.sh vets for Linux; the cross job builds for macOS and Windows but
+      # compiles no _test.go file. vet does, so a test that only breaks there is
+      # caught too.
+      - name: go vet (macOS, Windows)
+        run: |
+          GOOS=darwin go vet ./...
+          GOOS=windows go vet ./...
 
   library:
     name: library
@@ -82,8 +102,7 @@ jobs:
           # Every module in this repository declares the same Go version, and
           # go-version-file keeps the workflow from drifting away from it.
           go-version-file: go.mod
-      - name: go vet
-        run: go vet ./...
+          check-latest: true
       # -race because the middleware runs on every request goroutine at once,
       # and the logging middleware shares its first-access set between them.
       - name: go test
@@ -104,7 +123,7 @@ jobs:
           - { name: "Pi 1 / Zero", goos: linux, goarch: arm, goarm: "6" }
           - { name: "Pi 2/3/4 32-bit", goos: linux, goarch: arm, goarm: "7" }
           - { name: "Pi 3/4/5 64-bit", goos: linux, goarch: arm64 }
-          - { name: "linux amd64", goos: linux, goarch: amd64 }
+          # No linux amd64: the library job builds and tests it.
           - { name: "linux 386", goos: linux, goarch: "386" }
           - { name: "windows amd64", goos: windows, goarch: amd64 }
           - { name: "macOS arm64", goos: darwin, goarch: arm64 }
@@ -113,6 +132,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+          check-latest: true
       # web/owner_unix.go and owner_other.go are the only platform split; both
       # sides are built here.
       - name: go build
@@ -133,6 +153,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: demo/demo_app/go.mod
+          check-latest: true
       # app/certs/ is deliberately not committed and webservices.go embeds it,
       # so nothing compiles before this runs.
       - name: generate dev certificate
@@ -173,6 +194,7 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: demo/demo_app/go.mod
+          check-latest: true
       - name: generate dev certificate
         run: make ensure_dev_certs
       # One target per build_* recipe in the Makefile.

@@ -127,7 +127,7 @@ needs its development certificate generated first, because
 
 ### Checking everything at once
 
-`scripts/check.sh` runs `go fix`, `go vet`, `golangci-lint` and `govulncheck`
+`scripts/check.sh` runs `go fix`, `go mod tidy`, `go vet`, `golangci-lint` and `govulncheck`
 over both modules, generating `demo_app`'s certificate first:
 
     scripts/check.sh               # apply fixes, check everything
@@ -144,15 +144,15 @@ library's own convention requires that `defer`.
 
 ### CI
 
-`.github/workflows/ci.yml` runs on every push to `main` and on every pull
-request, on Linux, the platform the services run on.
+`.github/workflows/ci.yml` runs on every push to `main`, on every pull
+request, weekly and by hand, on Linux, the platform the services run on.
 
 | Job | Covers |
 |---|---|
 | `format` | `gofmt` over the whole tree, `demo_app` included |
-| `checks` | `scripts/check.sh --check`: pending `go fix` work, `golangci-lint`, `govulncheck` |
-| `library` | `go vet` and `go test -race -cover`, then the `*AsRoot` tests under `sudo` |
-| `cross` | the Raspberry Pi targets, Linux amd64 and 386, Windows, macOS |
+| `checks` | `scripts/check.sh --check`: pending `go fix` and `go mod tidy` work, `go vet`, `golangci-lint`, `govulncheck`; `go vet` for macOS and Windows |
+| `library` | `go test -race -cover`, then the `*AsRoot` tests under `sudo` |
+| `cross` | the Raspberry Pi targets, Linux 386, Windows, macOS |
 | `demo_app` | certificate, vet, race tests, and the `swagger`-tagged build |
 | `demo_app_cross` | one target per `build_*` recipe in its `Makefile` |
 

@@ -3,7 +3,8 @@
 #
 # One gomod entry per module: demo/demo_app has its own go.mod, so a single
 # entry would leave it unwatched. Updates are grouped, because the modules move
-# together and separate pull requests for the same golang.org/x bump are noise.
+# together: the swagger generator on its own, everything else in one group, so a
+# week brings at most two pull requests for them.
 #
 # To switch this off, delete this file. The CI workflow does not depend on it.
 
@@ -18,12 +19,9 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     commit-message:
-      # Matches this repository's "type() description" convention.
-      prefix: "chore()"
+      # "chore(deps): …", this repository's "type(scope): description" convention.
+      prefix: "chore(deps)"
     groups:
-      golang-x:
-        patterns:
-          - "golang.org/x/*"
       # The swagger generator drags in a large graph of its own that only
       # affects docs/generate.sh, never the production binary.
       swagger:
@@ -34,7 +32,6 @@ updates:
         patterns:
           - "*"
         exclude-patterns:
-          - "golang.org/x/*"
           - "github.com/swaggo/*"
           - "github.com/go-openapi/*"
 
@@ -43,7 +40,8 @@ updates:
     schedule:
       interval: weekly
     commit-message:
-      prefix: "ci()"
+      # "chore(ci): …" - an action only changes the workflows, not the library.
+      prefix: "chore(ci)"
     groups:
       actions:
         patterns:

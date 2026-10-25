@@ -29,9 +29,9 @@ go test -race ./...
 go test ./web/ -run TestWithAuth -v     # single package / single test
 ```
 
-Everything builds on macOS, Linux and Windows. `scripts/check.sh` runs `go fix`, `go vet`,
+Everything builds on macOS, Linux and Windows. `scripts/check.sh` runs `go fix`, `go mod tidy`, `go vet`,
 `golangci-lint` and `govulncheck` over both modules and generates `demo_app`'s certificate first;
-`--check` reports pending `go fix` work without writing, `--skip=vuln` drops the step that needs a
+`--check` reports pending `go fix` and `go mod tidy` work without writing, `--skip=vuln` drops the step that needs a
 network, `--goos=darwin` checks for another platform (default: `linux`, which ships and which CI
 checks). Prefer it over running the tools by hand — they do not see `demo/demo_app` from the root.
 
@@ -144,12 +144,15 @@ ignores `xlog.LoggerWrapper.Close`, because this repository's own convention is 
 `errcheck` entirely. **Do not widen these exclusions to make a new finding go away; fix the
 finding or record the decision.**
 
-**CI:** `.github/workflows/ci.yml`, on pushes to `main` and on pull requests, on Linux. Actions
-are pinned to a commit SHA with the release in a comment — never a movable tag like `@v7`;
-dependabot updates the pins. Six jobs: `format` (gofmt over the whole tree), `checks`
-(`scripts/check.sh --check`, so the CI and the local command cannot drift apart), `library` (vet
-plus `go test -race -cover`, then the `*AsRoot` tests again under `sudo` — they skip without
-root, so name a test that way when it needs root), `cross` (Pi targets, Linux amd64/386, Windows, macOS), `demo_app`
+**CI:** `.github/workflows/ci.yml`, on pushes to `main`, pull requests, weekly and by hand, on
+Linux. `setup-go` takes the Go version from `go.mod` with `check-latest`, so the weekly run
+catches a toolchain advisory without a commit. Actions are pinned to a commit SHA with the release
+in a comment — never a movable tag like `@v7`; dependabot updates the pins. golangci-lint and
+govulncheck are pinned in `ci.yml` and in `scripts/check.sh`; raise both together. Six jobs:
+`format` (gofmt over the whole tree), `checks` (`scripts/check.sh --check`, so the CI and the
+local command cannot drift apart, plus vet for macOS and Windows), `library` (`go test -race
+-cover`, then the `*AsRoot` tests again under `sudo` — they skip without root, so name a test
+that way when it needs root), `cross` (Pi targets, Linux 386, Windows, macOS), `demo_app`
 (certificate, vet, race tests, `-tags swagger`) and `demo_app_cross` (one target per `build_*`
 recipe in its Makefile). When adding a demo module, extend the matrices: a new module is
 invisible to every existing job.
@@ -159,8 +162,7 @@ declare the same `go 1.27`**, deliberately supporting one version rather than a 
 in step.
 
 **Dependencies:** `.github/dependabot.yml`, weekly, one `gomod` entry per module plus the
-GitHub Actions themselves, with updates grouped (`golang.org/x/*`, the swagger generator,
-everything else). The root module has no dependencies; `demo_app` has yaml and swagger. When
+GitHub Actions themselves, with updates grouped (the swagger generator, everything else). The root module has no dependencies; `demo_app` has yaml and swagger. When
 updating by hand, raise the direct requirements and let `go mod tidy` settle the rest —
 `go get -u ./...` in `demo/demo_app` drags the whole swagger graph forward, which affects only
 `docs/generate.sh` and has broken the tagged build before.
